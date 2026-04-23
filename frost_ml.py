@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import deque
+from collections import deque, defaultdict
 from datetime import datetime
 import math
 import os
@@ -22,24 +22,11 @@ try:
     from config import CONFIG
 except Exception:
     CONFIG = {
-        "thresholds": {
-            "safe_max_c": 6.5,
-            "critical_at_c": 8.0,
-            "temp_ceil_c": 12.0,
-            "temp_floor_c": 2.0,
-        },
+        "thresholds": {"safe_max_c": 6.5, "critical_at_c": 8.0, "temp_ceil_c": 12.0, "temp_floor_c": 2.0},
         "truck": {"base_speed_kmh": 68.0},
-        "weather_defaults": {
-            "ambient_temp_c": 31.0,
-            "ambient_humidity_pct": 58.0,
-            "weather_risk_index": 0.35,
-        },
-        "route": {
-            "start": {"lat": 22.3072, "lon": 73.1812},
-            "dest": {"lat": 23.0225, "lon": 72.5714},
-        },
+        "weather_defaults": {"ambient_temp_c": 31.0, "ambient_humidity_pct": 58.0, "weather_risk_index": 0.35},
+        "route": {"start": {"lat": 22.3072, "lon": 73.1812}, "dest": {"lat": 23.0225, "lon": 72.5714}},
     }
-
 
 SAFE_MAX = float(CONFIG["thresholds"]["safe_max_c"])
 CRITICAL_AT = float(CONFIG["thresholds"]["critical_at_c"])
@@ -48,44 +35,14 @@ TEMP_FLOOR = float(CONFIG["thresholds"]["temp_floor_c"])
 BASE_SPEED = float(CONFIG["truck"]["base_speed_kmh"])
 WEATHER_DEFAULTS = CONFIG["weather_defaults"]
 
-
 class FrostGuardML:
-    """Rolling unsupervised anomaly detector plus short-horizon temperature forecast."""
-
     feature_columns = [
-        "temperature",
-        "temp_min",
-        "temp_max",
-        "temp_std",
-        "temp_change_rate",
-        "temp_delta",
-        "temp_delta_2",
-        "temp_lag_1",
-        "temp_lag_2",
-        "temp_lag_3",
-        "temp_lag_6",
-        "temp_rolling_mean",
-        "temp_rolling_mean_3",
-        "temp_rolling_mean_6",
-        "temp_rolling_std_6",
-        "temp_rolling_std",
-        "temp_range",
-        "hour_sin",
-        "hour_cos",
-        "frac_temp_above_6",
-        "frac_temp_above_8",
-        "hum_mean",
-        "hum_std",
-        "door_count",
-        "accel_rms",
-        "handling_stress",
-        "health_index",
-        "ambient_temp_c",
-        "ambient_humidity_pct",
-        "weather_risk_index",
-        "speed_kmh",
-        "distance_step_km",
-        "minutes_above_safe",
+        "temperature", "temp_min", "temp_max", "temp_std", "temp_change_rate", "temp_delta",
+        "temp_delta_2", "temp_lag_1", "temp_lag_2", "temp_lag_3", "temp_lag_6", "temp_rolling_mean",
+        "temp_rolling_mean_3", "temp_rolling_mean_6", "temp_rolling_std_6", "temp_rolling_std",
+        "temp_range", "hour_sin", "hour_cos", "frac_temp_above_6", "frac_temp_above_8", "hum_mean",
+        "hum_std", "door_count", "accel_rms", "handling_stress", "health_index", "ambient_temp_c",
+        "ambient_humidity_pct", "weather_risk_index", "speed_kmh", "distance_step_km", "minutes_above_safe",
     ]
 
     def __init__(
@@ -103,27 +60,12 @@ class FrostGuardML:
         self.training_sample_rows = training_sample_rows
         self.forecast_steps = forecast_steps
         self.seconds_per_step = seconds_per_step
-        self.history: deque[dict[str, Any]] = deque(maxlen=window_size)
-        self.detector = Pipeline(
-            [
-                ("scale", StandardScaler()),
-                (
-                    "isolation_forest",
-                    IsolationForest(
-                        n_estimators=180,
-                        contamination=0.12,
-                        random_state=42,
-                    ),
-                ),
-            ]
-        )
-        self.forecaster = HistGradientBoostingRegressor(
-            max_iter=420,
-            learning_rate=0.045,
-            max_leaf_nodes=63,
-            l2_regularization=0.02,
-            random_state=42,
-        )
+        
+        # Track history individually per truck to prevent mixed data
+        self.histories = defaultdict(lambda: deque(maxlen=self.window_size))
+        
+        self.detector = Pipeline([("scale", StandardScaler()), ("isolation_forest", IsolationForest(n_estimators=180, contamination=0.12, random_state=42))])
+        self.forecaster = HistGradientBoostingRegressor(max_iter=420, learning_rate=0.045, max_leaf_nodes=63, l2_regularization=0.02, random_state=42)
         self.fallback_forecaster = Pipeline([("scale", StandardScaler()), ("ridge", Ridge(alpha=1.0))])
         self.is_trained = False
         self.training_rows = 0
@@ -131,6 +73,9 @@ class FrostGuardML:
         self.last_point: dict[str, Any] | None = None
         self.minutes_above_safe = 0.0
         self._train()
+
+    def reset(self):
+        self.histories.clear()
 
     def _train(self) -> None:
         frame = self._load_training_data()
@@ -188,12 +133,7 @@ class FrostGuardML:
         except Exception:
             return pd.DataFrame()
 
-        rename_map = {
-            "Current_Temp": "temperature",
-            "Lat": "lat",
-            "Lng": "lng",
-            "Timestamp": "timestamp",
-        }
+        rename_map = {"Current_Temp": "temperature", "Lat": "lat", "Lng": "lng", "Timestamp": "timestamp"}
         raw = raw.rename(columns=rename_map)
         if "temperature" not in raw:
             return pd.DataFrame()
@@ -207,29 +147,9 @@ class FrostGuardML:
         raw = raw.dropna(subset=["temperature"]).sort_values("timestamp")
         raw = self._ensure_optional_columns(raw)
         return raw[
-            [
-                "bag_id",
-                "temperature",
-                "temp_min",
-                "temp_max",
-                "temp_std",
-                "temp_change_rate",
-                "frac_temp_above_6",
-                "frac_temp_above_8",
-                "hum_mean",
-                "hum_std",
-                "door_count",
-                "accel_rms",
-                "handling_stress",
-                "health_index",
-                "ambient_temp_c",
-                "ambient_humidity_pct",
-                "weather_risk_index",
-                "lat",
-                "lng",
-                "timestamp",
-                "speed_kmh",
-            ]
+            ["bag_id", "temperature", "temp_min", "temp_max", "temp_std", "temp_change_rate", "frac_temp_above_6",
+             "frac_temp_above_8", "hum_mean", "hum_std", "door_count", "accel_rms", "handling_stress", "health_index",
+             "ambient_temp_c", "ambient_humidity_pct", "weather_risk_index", "lat", "lng", "timestamp", "speed_kmh"]
         ].tail(600)
 
     def _load_healthcare_dataset(self) -> pd.DataFrame:
@@ -241,31 +161,15 @@ class FrostGuardML:
         except Exception:
             return pd.DataFrame()
 
-        rename_map = {
-            "temp_mean": "temperature",
-            "Health_Index": "health_index",
-        }
+        rename_map = {"temp_mean": "temperature", "Health_Index": "health_index"}
         raw = raw.rename(columns=rename_map)
         if "temperature" not in raw:
             return pd.DataFrame()
         if "bag_id" not in raw:
             raw["bag_id"] = "fleet_log"
 
-        numeric_cols = [
-            "temperature",
-            "temp_min",
-            "temp_max",
-            "temp_std",
-            "frac_temp_above_6",
-            "frac_temp_above_8",
-            "hum_mean",
-            "hum_std",
-            "door_count",
-            "accel_rms",
-            "handling_stress",
-            "health_index",
-            "temp_change_rate",
-        ]
+        numeric_cols = ["temperature", "temp_min", "temp_max", "temp_std", "frac_temp_above_6", "frac_temp_above_8",
+                        "hum_mean", "hum_std", "door_count", "accel_rms", "handling_stress", "health_index", "temp_change_rate"]
         for col in numeric_cols:
             if col in raw:
                 raw[col] = pd.to_numeric(raw[col], errors="coerce")
@@ -277,29 +181,9 @@ class FrostGuardML:
         raw["speed_kmh"] = BASE_SPEED
         raw = self._ensure_optional_columns(raw)
         return raw[
-            [
-                "bag_id",
-                "temperature",
-                "temp_min",
-                "temp_max",
-                "temp_std",
-                "temp_change_rate",
-                "frac_temp_above_6",
-                "frac_temp_above_8",
-                "hum_mean",
-                "hum_std",
-                "door_count",
-                "accel_rms",
-                "handling_stress",
-                "health_index",
-                "ambient_temp_c",
-                "ambient_humidity_pct",
-                "weather_risk_index",
-                "lat",
-                "lng",
-                "timestamp",
-                "speed_kmh",
-            ]
+            ["bag_id", "temperature", "temp_min", "temp_max", "temp_std", "temp_change_rate", "frac_temp_above_6",
+             "frac_temp_above_8", "hum_mean", "hum_std", "door_count", "accel_rms", "handling_stress", "health_index",
+             "ambient_temp_c", "ambient_humidity_pct", "weather_risk_index", "lat", "lng", "timestamp", "speed_kmh"]
         ].tail(self.training_sample_rows)
 
     def save_artifact(self, artifact_path: str) -> None:
@@ -314,20 +198,11 @@ class FrostGuardML:
         defaults = {
             "temp_min": frame["temperature"] if "temperature" in frame else 4.5,
             "temp_max": frame["temperature"] if "temperature" in frame else 4.5,
-            "temp_std": 0.08,
-            "temp_change_rate": 0.0,
-            "frac_temp_above_6": 0.0,
-            "frac_temp_above_8": 0.0,
-            "hum_mean": 58.0,
-            "hum_std": 2.5,
-            "door_count": 0.0,
-            "accel_rms": 0.04,
-            "handling_stress": 0.45,
-            "health_index": 0.98,
-            "ambient_temp_c": float(WEATHER_DEFAULTS["ambient_temp_c"]),
+            "temp_std": 0.08, "temp_change_rate": 0.0, "frac_temp_above_6": 0.0, "frac_temp_above_8": 0.0,
+            "hum_mean": 58.0, "hum_std": 2.5, "door_count": 0.0, "accel_rms": 0.04, "handling_stress": 0.45,
+            "health_index": 0.98, "ambient_temp_c": float(WEATHER_DEFAULTS["ambient_temp_c"]),
             "ambient_humidity_pct": float(WEATHER_DEFAULTS["ambient_humidity_pct"]),
-            "weather_risk_index": float(WEATHER_DEFAULTS["weather_risk_index"]),
-            "speed_kmh": BASE_SPEED,
+            "weather_risk_index": float(WEATHER_DEFAULTS["weather_risk_index"]), "speed_kmh": BASE_SPEED,
         }
         for col, default in defaults.items():
             if col not in frame:
@@ -354,29 +229,20 @@ class FrostGuardML:
             else:
                 temp += rng.uniform(-0.12, 0.14)
             temp = float(np.clip(temp, 2.0, TEMP_CEIL))
-            rows.append(
-                {
-                    "temperature": round(temp, 2),
-                    "temp_min": round(temp - rng.uniform(0.05, 0.2), 2),
-                    "temp_max": round(temp + rng.uniform(0.05, 0.35), 2),
-                    "temp_std": rng.uniform(0.04, 0.28),
-                    "frac_temp_above_6": 1.0 if temp > 6.0 else rng.uniform(0.0, 0.08),
-                    "frac_temp_above_8": 1.0 if temp > CRITICAL_AT else rng.uniform(0.0, 0.03),
-                    "hum_mean": 58 + rng.normal(0, 2.5),
-                    "hum_std": rng.uniform(1.6, 3.4),
-                    "door_count": max(0.0, rng.normal(0.02, 0.08)),
-                    "accel_rms": rng.uniform(0.02, 0.08),
-                    "handling_stress": rng.uniform(0.35, 0.7),
-                    "health_index": float(np.clip(1.0 - max(temp - 4.5, 0) * 0.04, 0.55, 1.0)),
-                    "ambient_temp_c": float(WEATHER_DEFAULTS["ambient_temp_c"]) + rng.normal(0, 2.0),
-                    "ambient_humidity_pct": float(WEATHER_DEFAULTS["ambient_humidity_pct"]) + rng.normal(0, 6.0),
-                    "weather_risk_index": float(np.clip(float(WEATHER_DEFAULTS["weather_risk_index"]) + max(temp - SAFE_MAX, 0) * 0.08, 0.0, 1.0)),
-                    "lat": lat + idx * 0.0032,
-                    "lng": lng - idx * 0.0025,
-                    "timestamp": pd.Timestamp("2026-01-01") + pd.Timedelta(seconds=idx * 3),
-                    "speed_kmh": 68 + rng.normal(0, 4),
-                }
-            )
+            rows.append({
+                "temperature": round(temp, 2), "temp_min": round(temp - rng.uniform(0.05, 0.2), 2),
+                "temp_max": round(temp + rng.uniform(0.05, 0.35), 2), "temp_std": rng.uniform(0.04, 0.28),
+                "frac_temp_above_6": 1.0 if temp > 6.0 else rng.uniform(0.0, 0.08),
+                "frac_temp_above_8": 1.0 if temp > CRITICAL_AT else rng.uniform(0.0, 0.03),
+                "hum_mean": 58 + rng.normal(0, 2.5), "hum_std": rng.uniform(1.6, 3.4),
+                "door_count": max(0.0, rng.normal(0.02, 0.08)), "accel_rms": rng.uniform(0.02, 0.08),
+                "handling_stress": rng.uniform(0.35, 0.7), "health_index": float(np.clip(1.0 - max(temp - 4.5, 0) * 0.04, 0.55, 1.0)),
+                "ambient_temp_c": float(WEATHER_DEFAULTS["ambient_temp_c"]) + rng.normal(0, 2.0),
+                "ambient_humidity_pct": float(WEATHER_DEFAULTS["ambient_humidity_pct"]) + rng.normal(0, 6.0),
+                "weather_risk_index": float(np.clip(float(WEATHER_DEFAULTS["weather_risk_index"]) + max(temp - SAFE_MAX, 0) * 0.08, 0.0, 1.0)),
+                "lat": lat + idx * 0.0032, "lng": lng - idx * 0.0025,
+                "timestamp": pd.Timestamp("2026-01-01") + pd.Timedelta(seconds=idx * 3), "speed_kmh": 68 + rng.normal(0, 4),
+            })
         return pd.DataFrame(rows)
 
     def _build_features(self, frame: pd.DataFrame) -> pd.DataFrame:
@@ -442,8 +308,11 @@ class FrostGuardML:
 
     def analyze(self, telemetry: dict[str, Any]) -> dict[str, Any]:
         point = self._normalise_point(telemetry)
-        self.history.append(point)
-        frame = pd.DataFrame(self.history)
+        truck_id = telemetry.get("truck_id", "TRK-DEFAULT")
+        
+        self.histories[truck_id].append(point)
+        frame = pd.DataFrame(self.histories[truck_id])
+        
         featured = self._build_features(frame)
         latest = featured.iloc[-1]
         x = latest[self.feature_columns].to_frame().T
@@ -460,12 +329,7 @@ class FrostGuardML:
             forecast, CRITICAL_AT, seconds_per_step=self.seconds_per_step
         )
         breach_probability = int(
-            np.clip(
-                (max_forecast - SAFE_MAX) / (CRITICAL_AT - SAFE_MAX) * 70
-                + anomaly_score * 0.3,
-                0,
-                100,
-            )
+            np.clip((max_forecast - SAFE_MAX) / (CRITICAL_AT - SAFE_MAX) * 70 + anomaly_score * 0.3, 0, 100)
         )
         if point["temperature"] >= CRITICAL_AT:
             breach_probability = max(breach_probability, 95)
@@ -494,25 +358,17 @@ class FrostGuardML:
         timestamp = telemetry.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         speed = float(telemetry.get("speed_kmh", BASE_SPEED))
         return {
-            "temperature": temp,
-            "temp_min": float(telemetry.get("temp_min", temp)),
-            "temp_max": float(telemetry.get("temp_max", temp)),
-            "temp_std": float(telemetry.get("temp_std", 0.08)),
+            "temperature": temp, "temp_min": float(telemetry.get("temp_min", temp)),
+            "temp_max": float(telemetry.get("temp_max", temp)), "temp_std": float(telemetry.get("temp_std", 0.08)),
             "frac_temp_above_6": float(telemetry.get("frac_temp_above_6", 1.0 if temp > 6.0 else 0.0)),
             "frac_temp_above_8": float(telemetry.get("frac_temp_above_8", 1.0 if temp > CRITICAL_AT else 0.0)),
-            "hum_mean": float(telemetry.get("hum_mean", 58.0)),
-            "hum_std": float(telemetry.get("hum_std", 2.5)),
-            "door_count": float(telemetry.get("door_count", 0.0)),
-            "accel_rms": float(telemetry.get("accel_rms", 0.04)),
-            "handling_stress": float(telemetry.get("handling_stress", 0.45)),
-            "health_index": float(telemetry.get("health_index", 0.98)),
+            "hum_mean": float(telemetry.get("hum_mean", 58.0)), "hum_std": float(telemetry.get("hum_std", 2.5)),
+            "door_count": float(telemetry.get("door_count", 0.0)), "accel_rms": float(telemetry.get("accel_rms", 0.04)),
+            "handling_stress": float(telemetry.get("handling_stress", 0.45)), "health_index": float(telemetry.get("health_index", 0.98)),
             "ambient_temp_c": float(telemetry.get("ambient_temp_c", WEATHER_DEFAULTS["ambient_temp_c"])),
             "ambient_humidity_pct": float(telemetry.get("ambient_humidity_pct", WEATHER_DEFAULTS["ambient_humidity_pct"])),
             "weather_risk_index": float(telemetry.get("weather_risk_index", WEATHER_DEFAULTS["weather_risk_index"])),
-            "lat": lat,
-            "lng": lng,
-            "timestamp": pd.to_datetime(timestamp, errors="coerce"),
-            "speed_kmh": speed,
+            "lat": lat, "lng": lng, "timestamp": pd.to_datetime(timestamp, errors="coerce"), "speed_kmh": speed,
         }
 
     def _forecast_sequence(self, features: pd.DataFrame, steps: int) -> list[float]:
@@ -551,11 +407,7 @@ class FrostGuardML:
             current["temp_rolling_mean"] = current["temp_rolling_mean_6"]
             current["temp_rolling_std_6"] = max(float(current["temp_rolling_std_6"].iloc[0]) * 0.92, 0.02)
             current["temp_rolling_std"] = current["temp_rolling_std_6"]
-            current["minutes_above_safe"] = (
-                float(current["minutes_above_safe"].iloc[0]) + 0.05
-                if next_temp > SAFE_MAX
-                else 0.0
-            )
+            current["minutes_above_safe"] = (float(current["minutes_above_safe"].iloc[0]) + 0.05 if next_temp > SAFE_MAX else 0.0)
         return sequence
 
     def _time_to_threshold(self, forecast: list[float], threshold: float, seconds_per_step: int) -> int | None:
@@ -564,13 +416,7 @@ class FrostGuardML:
                 return idx * seconds_per_step
         return None
 
-    def _risk_level(
-        self,
-        temp: float,
-        anomaly: bool,
-        breach_probability: int,
-        time_to_critical: int | None,
-    ) -> str:
+    def _risk_level(self, temp: float, anomaly: bool, breach_probability: int, time_to_critical: int | None) -> str:
         if temp >= CRITICAL_AT or time_to_critical is not None and time_to_critical <= 15:
             return "CRITICAL"
         if temp >= SAFE_MAX or breach_probability >= 65 or anomaly:
@@ -596,13 +442,7 @@ class FrostGuardML:
             radius = 6371
             dlat = math.radians(float(lat2) - float(lat1))
             dlon = math.radians(float(lon2) - float(lon1))
-            a = (
-                math.sin(dlat / 2) ** 2
-                + math.cos(math.radians(float(lat1)))
-                * math.cos(math.radians(float(lat2)))
-                * math.sin(dlon / 2) ** 2
-            )
+            a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(float(lat1))) * math.cos(math.radians(float(lat2))) * math.sin(dlon / 2) ** 2
             return radius * 2 * math.asin(math.sqrt(a))
         except Exception:
             return 0.0
-
