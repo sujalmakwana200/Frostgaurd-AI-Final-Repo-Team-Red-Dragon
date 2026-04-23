@@ -21,7 +21,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "fleet_logs.csv")
 DATASET_PATH = os.path.join(BASE_DIR, "data", "healthcare_iot_target_dataset.csv")
 
-# FIX: State Dictionary (Fixes Goldfish Memory)
 _fleet_state: dict[str, dict] = {}
 _latest_telemetry: dict[str, Any] | None = None
 _sim_pid: int | None = None
@@ -29,7 +28,6 @@ _csv_lock = threading.Lock()
 
 _ml_engine = FrostGuardML(csv_path=CSV_FILE, dataset_path=DATASET_PATH if os.path.exists(DATASET_PATH) else None)
 
-# FIX: Expand schema to prevent Data Shredding
 class TelemetryPayload(BaseModel):
     truck_id: str
     cargo: str
@@ -53,7 +51,7 @@ class TelemetryPayload(BaseModel):
     temp_change_rate: Optional[float] = None
 
 def _append_csv(row: dict) -> None:
-    with _csv_lock: # FIX: Prevent Concurrent File Mangling
+    with _csv_lock:
         file_exists = os.path.isfile(CSV_FILE)
         with open(CSV_FILE, mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
@@ -61,7 +59,6 @@ def _append_csv(row: dict) -> None:
                 writer.writerow(["Truck_ID", "Cargo", "Current_Temp", "Status", "Lat", "Lng", "Timestamp"])
             writer.writerow([row["truck_id"], row["cargo"], row["temperature"], row["status"], row["lat"], row["lng"], row["timestamp"]])
 
-# FIX: Restored KNN logic from the old Bridge
 def _knn_reroute(data: dict) -> dict | None:
     temp = float(data.get("temperature", 5.0))
     if temp < 8.0:
@@ -84,7 +81,7 @@ def ingest_telemetry(payload: TelemetryPayload):
         data["reroute"] = reroute
         data["ml_insight"]["recommendation"] = f"Reroute to {reroute['target']['name']} immediately."
 
-    data["last_updated"] = time.time() # Mark real data as fresh
+    data["last_updated"] = time.time()
     _fleet_state[data["truck_id"]] = data
     _latest_telemetry = data
     _append_csv(data)
@@ -95,11 +92,9 @@ def ingest_telemetry(payload: TelemetryPayload):
 def get_latest():
     return _latest_telemetry
 
-# FIX: Added Missing Fleet Route
 @app.get("/fleet")
 def get_fleet():
     now = time.time()
-    # Mock data generation for trucks that HAVEN'T sent real data recently
     for i in range(2, 14):
         tid = f"TRK-RD-{i:03d}"
         if tid not in _fleet_state or now - _fleet_state[tid].get("last_updated", 0) > 10:
@@ -120,7 +115,8 @@ def reset():
     global _latest_telemetry, _sim_pid
     _fleet_state.clear()
     _latest_telemetry = None
-    _ml_engine.reset() # FIX: Clear ML Ghost History
+    if hasattr(_ml_engine, 'reset'):
+        _ml_engine.reset() 
     return {"status": "reset_ok"}
 
 if __name__ == "__main__":
