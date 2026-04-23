@@ -922,24 +922,24 @@ def get_dashboard_state(force=False):
     live_fleet = fetch_fleet()
     live_telemetry = fetch_latest()
     
-    # 1. Start with the frontend's beautifully smooth, curvy OSRM simulation
+    # 1. Start with the FAST moving simulation
     simulated_fleet = demo_fleet()
     
-    # 2. Grab any REAL data that just came in from the API
+    # 2. Grab real data from the API
     real_data = {t["truck_id"]: t for t in live_fleet} if live_fleet else {}
     if live_telemetry:
         real_data[live_telemetry["truck_id"]] = live_telemetry
         
-    # 3. THE SMART MERGE: Keep the smooth GPS from the simulation, 
-    # but overwrite the temperature and ML alerts with the real API data!
+    # 3. SMART MERGE: Keep the smooth simulated GPS coordinates, 
+    # but overwrite the temperature and ML alerts with real data!
     fleet = []
     for sim_truck in simulated_fleet:
         tid = sim_truck["truck_id"]
         if tid in real_data:
             real_truck = real_data[tid]
-            merged_truck = dict(sim_truck) # Inherit the smooth map coordinates
+            merged_truck = dict(sim_truck) # Keep the curvy movement
             
-            # Inject the real data
+            # Inject live data
             merged_truck["temperature"] = real_truck.get("temperature", merged_truck["temperature"])
             merged_truck["status"] = real_truck.get("status", merged_truck["status"])
             merged_truck["timestamp"] = real_truck.get("timestamp", merged_truck["timestamp"])
@@ -952,6 +952,12 @@ def get_dashboard_state(force=False):
             fleet.append(merged_truck)
         else:
             fleet.append(sim_truck)
+
+    # Catch any unexpected real trucks that aren't in our config
+    existing_ids = {t["truck_id"] for t in fleet}
+    for tid, real_truck in real_data.items():
+        if tid not in existing_ids:
+            fleet.append(real_truck)
 
     fleet = enrich_fleet_with_dataset(fleet)
     telemetry = choose_focus_truck(fleet)
