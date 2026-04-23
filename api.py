@@ -94,8 +94,7 @@ def get_latest():
 
 @app.get("/fleet")
 def get_fleet():
-    # We stripped out the static fake trucks.
-    # Now the API ONLY returns trucks that have sent REAL data.
+    # Only return real data, no fake static trucks!
     return {"fleet": list(_fleet_state.values())}
 
 @app.get("/health")
