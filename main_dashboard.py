@@ -466,6 +466,7 @@ def nearest_cold_storage(lat, lon):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 # Strip cache decorator, or use it smartly
+# Strip cache decorator so straight lines aren't saved forever
 def fetch_route(slon, slat, elon, elat):
     try:
         url = f"https://router.project-osrm.org/route/v1/driving/{slon},{slat};{elon},{elat}?overview=full&geometries=geojson"
@@ -474,7 +475,6 @@ def fetch_route(slon, slat, elon, elat):
     except Exception:
         steps = 180
         return [(slat + i / steps * (elat - slat), slon + i / steps * (elon - slon)) for i in range(steps + 1)]
-        
 def risk_color(level):
     return {
         "CRITICAL": "#FF3B3B", "HIGH": "#FF6B35",
@@ -611,7 +611,7 @@ def api_online():
 def launch_services():
     if api_online():
         return
-    # FIX: Clean up old handles and processes
+    # Clean up old handles and processes
     proc = st.session_state.get("bridge_process")
     if proc is not None:
         try:
@@ -625,7 +625,7 @@ def launch_services():
     logs = os.path.join(base, "logs")
     os.makedirs(logs, exist_ok=True)
     
-    # FIX: Call api.py, forget Bridge.py
+    # Call api.py, forget Bridge.py
     api_path = os.path.join(base, "api.py")
     if os.path.exists(api_path):
         stdout = open(os.path.join(logs, "api_stdout.log"), "a", encoding="utf-8")
@@ -638,7 +638,6 @@ def launch_services():
             **popen_kwargs,
         )
         st.session_state.last_bridge_launch = time.time()
-
 def ensure_services():
     if api_online():
         st.session_state.services_launched = True
@@ -780,17 +779,33 @@ def choose_focus_truck(fleet):
             "speed_kmh": 0.0,
             "ml_insight": default_ml(st.session_state.last_temp),
         }
+        
     selected_id = st.session_state.get("selected_truck_id", "AUTO")
+    
     if selected_id and selected_id != "AUTO":
         selected = next((item for item in fleet if item.get("truck_id") == selected_id), None)
         if selected:
             return selected
+        
+        # If the backend forgot the truck, create a temporary placeholder
+        configured = next((truck for truck in FLEET_ROUTES if truck.get("truck_id") == selected_id), None)
+        if configured:
+            fallback = dict(configured)
+            fallback.update({
+                "status": "WAITING FOR DATA", 
+                "temperature": "—", 
+                "speed_kmh": 0.0, 
+                "distance_travelled_km": "—",
+                "ml_insight": default_ml(5.0)
+            })
+            return fallback
+
     for status in ("CRITICAL", "WARNING"):
         match = next((item for item in fleet if item.get("status") == status), None)
         if match:
             return match
+            
     return next((item for item in fleet if item.get("truck_id") == "TRK-RD-001"), fleet[0])
-
 
 def target_from_reroute(telemetry, lat, lon):
     reroute = telemetry.get("reroute") or {}
