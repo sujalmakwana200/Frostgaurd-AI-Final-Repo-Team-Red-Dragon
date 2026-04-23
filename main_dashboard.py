@@ -916,9 +916,91 @@ def get_dashboard_state(force=False):
     ensure_routes()
 
     now = time.monotonic()
-    # CHANGE: Lowered from 2.8 to 0.5 so movement data updates instantly!
+    # THIS IS THE FIX: Lowered from 2.8 to 0.5 so movement data updates instantly!
     if not force and st.session_state.last_snapshot and now - st.session_state.last_snapshot_at < 0.5:
         return st.session_state.last_snapshot
+
+    live_fleet = fetch_fleet()
+    live_telemetry = fetch_latest()
+    
+    # 1. Start with the FAST moving simulation
+    simulated_fleet = demo_fleet()
+    
+    # 2. Grab real data from the API
+    real_data = {t["truck_id"]: t for t in live_fleet} if live_fleet else {}
+    if live_telemetry:
+        real_data[live_telemetry["truck_id"]] = live_telemetry
+        
+    # 3. SMART MERGE: Keep the smooth simulated GPS coordinates, 
+    # but overwrite the temperature and ML alerts with real data!
+    fleet = []
+    for sim_truck in simulated_fleet:
+        tid = sim_truck["truck_id"]
+        if tid in real_data:
+            real_truck = real_data[tid]
+            merged_truck = dict(sim_truck) # Keep the curvy movement
+            
+            # Inject live data
+            merged_truck["temperature"] = real_truck.get("temperature", merged_truck["temperature"])
+            merged_truck["status"] = real_truck.get("status", merged_truck["status"])
+            merged_truck["timestamp"] = real_truck.get("timestamp", merged_truck["timestamp"])
+            
+            if "ml_insight" in real_truck:
+                merged_truck["ml_insight"] = real_truck["ml_insight"]
+            if "reroute" in real_truck:
+                merged_truck["reroute"] = real_truck["reroute"]
+                
+            fleet.append(merged_truck)
+        else:
+            fleet.append(sim_truck)
+
+    # Catch any unexpected real trucks that aren't in our config
+    existing_ids = {t["truck_id"] for t in fleet}
+    for tid, real_truck in real_data.items():
+        if tid not in existing_ids:
+            fleet.append(real_truck)
+
+    fleet = enrich_fleet_with_dataset(fleet)
+    telemetry = choose_focus_truck(fleet)
+    apply_trip_state(telemetry)
+
+    temp = float(telemetry.get("temperature", 5.0))
+    lat = float(telemetry.get("lat", START_LAT))
+    lon = float(telemetry.get("lng", START_LON))
+    status = telemetry.get("status", "SAFE")
+    cargo = telemetry.get("cargo", "Vaccines")
+    truck_id = telemetry.get("truck_id", "TRK-RD-001")
+    ts = telemetry.get("timestamp", "—")
+    speed_kmh = float(telemetry.get("speed_kmh", 68.0))
+    ml = telemetry.get("ml_insight") or default_ml(temp)
+    risk = ml.get("risk_level", "LOW")
+    remaining = max(len(st.session_state.active_route) - st.session_state.waypoint_idx, 0)
+    eta_min = int(remaining * 3 / 60) if speed_kmh > 0 else 0
+
+    snapshot = {
+        "telemetry": telemetry,
+        "live_telemetry": live_telemetry,
+        "fleet": fleet,
+        "api_ok": api_online(),
+        "sim_ok": bool(fleet),
+        "temp": temp,
+        "lat": lat,
+        "lon": lon,
+        "status": status,
+        "cargo": cargo,
+        "truck_id": truck_id,
+        "ts": ts,
+        "speed_kmh": speed_kmh,
+        "ml": ml,
+        "risk": risk,
+        "rc": risk_color(risk),
+        "is_crit": status == "CRITICAL",
+        "is_warn": status == "WARNING",
+        "eta_min": eta_min,
+    }
+    st.session_state.last_snapshot = snapshot
+    st.session_state.last_snapshot_at = now
+    return snapshot
 def voice_alert(snapshot):
     fleet = snapshot.get("fleet") or [snapshot]
     alert_trucks = [truck for truck in fleet if truck.get("status") in {"WARNING", "CRITICAL"}]
@@ -1238,8 +1320,8 @@ def _legacy_render_fleet_board_unused():
     )
 
 
-@st.fragment(run_every="15s")
-@st.fragment(run_every="15s")
+
+@st.fragment(run_every="1s")
 def render_map():
     s = get_dashboard_state()
     layers = []
