@@ -17,4 +17,20 @@ CONFIG = {
         "start": {"lat": 22.3072, "lon": 73.1812},
         "dest": {"lat": 23.0225, "lon": 72.5714},
     },
+    "datasets": {
+        "primary": "data/healthcare_iot_target_dataset.csv",
+        "fallback": "healthcare_iot_target_dataset.csv"
+    },
+    "ml": {
+        "model_artifact": "frostguard_ml.joblib",
+        "pickle_artifact": "frostguard_ml.pkl",
+        "knn_artifact": "knn_adapter.pkl",
+        "window_size": 120,
+        "training_sample_rows": 80000,
+        "forecast_steps": 10,
+        "seconds_per_step": 3
+    },
+    "bridge": {
+        "csv_file": "fleet_logs.csv"
+    }
 }
