@@ -5,13 +5,12 @@ from typing import Any
 import pandas as pd
 import requests
 
-# FIX: Correct dataset filename
 DATA_FILE = Path(__file__).resolve().parent / "data" / "healthcare_iot_target_dataset.csv"
 BRIDGE_URL = "http://127.0.0.1:5000/telemetry"
 TRIP_BAG_ID = "BAG_0001"
 REPLAY_DELAY_SECONDS = 2
 
-# FIX: Add waypoints to calculate movement
+# Waypoints to calculate movement
 START_LAT, START_LON = 22.3072, 73.1812
 DEST_LAT, DEST_LON = 23.0225, 72.5714
 
@@ -66,7 +65,7 @@ def replay_trip() -> None:
     for idx, row in trip.iterrows():
         payload = build_payload(row)
         
-        # FIX: Interpolate GPS so the truck actually moves on the map!
+        # Interpolate GPS so the truck actually moves on the map
         progress = idx / total_rows if total_rows > 1 else 0
         payload["lat"] = round(START_LAT + (DEST_LAT - START_LAT) * progress, 5)
         payload["lng"] = round(START_LON + (DEST_LON - START_LON) * progress, 5)
