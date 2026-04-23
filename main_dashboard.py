@@ -727,14 +727,10 @@ def demo_fleet():
         travelled = route_total * progress
         forced = 3.4 if failure and idx in {0, 2} else 0.0
         
-        # --- FIXED LINES HERE ---
-        # Default to None instead of 0.0 so we can tell if data is actually missing
+        # Check against None instead of > 0 so negative temps are kept
         dataset_temp = safe_float(sample.get("data_temperature"), None)
         simulated_temp = 4.8 + item["temp_offset"] + math.sin(elapsed / 18.0 + idx * 1.2) * 0.45
-        
-        # Check against None so we keep sub-zero temperatures!
         temp = round((dataset_temp if dataset_temp is not None else simulated_temp) + forced, 1)
-        # ------------------------
 
         status = risk_from_temp(temp)
         speed = 66 + item["speed_offset"] + math.cos(elapsed / 14.0 + idx) * 6
@@ -764,7 +760,6 @@ def demo_fleet():
             ml["recommendation"] = f"KNN reroute: divert to {reroute['target']['name']}, {reroute['target']['city']}."
         fleet.append(telemetry)
     return fleet
-
 
 def choose_focus_truck(fleet):
     if not fleet:
