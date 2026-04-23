@@ -1630,8 +1630,12 @@ def render_fleet_board():
 def render_dashboard():
     ensure_services()
     ensure_routes()
-    render_truck_selector()
-    render_header()
+    
+    # --- SWAPPED THESE TWO LINES ---
+    render_header()          # (Draws the reset button first)
+    render_truck_selector()  # (Draws the dropdown second)
+    # -------------------------------
+    
     render_alerts()
     render_metrics()
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
@@ -1640,6 +1644,3 @@ def render_dashboard():
     render_fleet_board()
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
     render_details()
-
-
-render_dashboard()
