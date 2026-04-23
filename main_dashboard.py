@@ -379,7 +379,7 @@ html, body,
 .fleet-note {
     margin-top:8px; color:#777; font-size:0.64rem; line-height:1.35;
 }
-.fleet-reroute {
+.fleet- {
     margin-top:8px; padding:6px 7px; border-radius:7px; background:#060606;
     border:1px solid #151515; color:#ABABAB; font-size:0.64rem; line-height:1.25;
 }
@@ -422,7 +422,7 @@ def fresh_defaults() -> dict[str, Any]:
         "dist_covered": 0.0,
         "prev_lat": START_LAT,
         "prev_lon": START_LON,
-        "rerouted": False,
+        "d": False,
         "reroute_target": None,
         "main_route": [],
         "active_route": [],
@@ -465,20 +465,16 @@ def nearest_cold_storage(lat, lon):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+# Strip cache decorator, or use it smartly
 def fetch_route(slon, slat, elon, elat):
     try:
-        url = (
-            f"https://router.project-osrm.org/route/v1/driving/"
-            f"{slon},{slat};{elon},{elat}?overview=full&geometries=geojson"
-        )
+        url = f"https://router.project-osrm.org/route/v1/driving/{slon},{slat};{elon},{elat}?overview=full&geometries=geojson"
         d = requests.get(url, timeout=4).json()
-        coords = d["routes"][0]["geometry"]["coordinates"]
-        return [(c[1], c[0]) for c in coords]
+        return [(c[1], c[0]) for c in d["routes"][0]["geometry"]["coordinates"]]
     except Exception:
         steps = 180
         return [(slat + i / steps * (elat - slat), slon + i / steps * (elon - slon)) for i in range(steps + 1)]
-
-
+        
 def risk_color(level):
     return {
         "CRITICAL": "#FF3B3B", "HIGH": "#FF6B35",
