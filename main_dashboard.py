@@ -1347,11 +1347,29 @@ def render_map():
         pickable=True,
     ))
 
+    # ... inside render_map() ...
+    
     st.pydeck_chart(pdk.Deck(
         layers=layers,
-        initial_view_state=pdk.ViewState(latitude=s["lat"], longitude=s["lon"], zoom=10, pitch=50),
+        initial_view_state=pdk.ViewState(
+            latitude=s["lat"], 
+            longitude=s["lon"], 
+            zoom=10.5,        # Slightly closer zoom
+            pitch=60,         # Tilted up for a 3D cinematic feel! (Changed from 50)
+            bearing=-15       # Slight rotation for an isometric angle
+        ),
         map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-        tooltip={"text": "📍 {name}{truck_id}\n{city}{cargo} {temperature}°C {status}"},
+        tooltip={
+            "html": "<b>{truck_id}</b> ({name})<br/>Cargo: {cargo}<br/>Temp: <b>{temperature}°C</b><br/>Status: <b>{status}</b>",
+            "style": {
+                "backgroundColor": "#0A0A0A",
+                "color": "#E2E2E2",
+                "border": "1px solid #2D9CFF",
+                "borderRadius": "8px",
+                "fontFamily": "'Space Mono', monospace",
+                "fontSize": "0.7rem"
+            }
+        },
     ))
 
 
