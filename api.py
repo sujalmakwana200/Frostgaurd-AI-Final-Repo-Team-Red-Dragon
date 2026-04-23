@@ -94,16 +94,8 @@ def get_latest():
 
 @app.get("/fleet")
 def get_fleet():
-    now = time.time()
-    for i in range(2, 14):
-        tid = f"TRK-RD-{i:03d}"
-        if tid not in _fleet_state or now - _fleet_state[tid].get("last_updated", 0) > 10:
-            temp = 4.8 + math.sin(now/18.0 + i) * 0.4
-            _fleet_state[tid] = {
-                "truck_id": tid, "cargo": "Medical", "temperature": round(temp, 1),
-                "status": "SAFE", "lat": 22.3 + (i*0.01), "lng": 73.1 + (i*0.01), 
-                "speed_kmh": 68.0, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+    # We stripped out the static fake trucks.
+    # Now the API ONLY returns trucks that have sent REAL data.
     return {"fleet": list(_fleet_state.values())}
 
 @app.get("/health")
