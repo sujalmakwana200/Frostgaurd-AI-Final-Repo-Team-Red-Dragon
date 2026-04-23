@@ -914,7 +914,32 @@ def get_dashboard_state(force=False):
 
     live_fleet = fetch_fleet()
     live_telemetry = fetch_latest()
-    fleet = live_fleet or ([live_telemetry] if live_telemetry else demo_fleet())
+    
+    # --- THE MERGE FIX ---
+    # 1. Start with the frontend's beautiful moving simulation
+    simulated_fleet = demo_fleet()
+    
+    # 2. Grab any REAL data from the API
+    real_data = {t["truck_id"]: t for t in live_fleet} if live_fleet else {}
+    if live_telemetry:
+        real_data[live_telemetry["truck_id"]] = live_telemetry
+        
+    # 3. Merge them! If a truck sends real data, it overrides the simulation.
+    fleet = []
+    for sim_truck in simulated_fleet:
+        tid = sim_truck["truck_id"]
+        if tid in real_data:
+            fleet.append(real_data[tid])
+        else:
+            fleet.append(sim_truck)
+            
+    # Catch any unexpected real trucks that aren't in our config
+    existing_ids = {t["truck_id"] for t in fleet}
+    for tid, real_truck in real_data.items():
+        if tid not in existing_ids:
+            fleet.append(real_truck)
+    # ---------------------
+
     fleet = enrich_fleet_with_dataset(fleet)
     telemetry = choose_focus_truck(fleet)
     apply_trip_state(telemetry)
@@ -956,7 +981,6 @@ def get_dashboard_state(force=False):
     st.session_state.last_snapshot = snapshot
     st.session_state.last_snapshot_at = now
     return snapshot
-
 
 def voice_alert(snapshot):
     fleet = snapshot.get("fleet") or [snapshot]
