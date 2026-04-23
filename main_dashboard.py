@@ -1104,12 +1104,18 @@ def render_truck_selector():
 
     left, right = st.columns([1.25, 4.75])
     with left:
+        # FIX: Clear history when switching trucks
+        def handle_truck_change():
+            invalidate_dashboard_state()
+            st.session_state.temp_history = []
+            st.session_state.speed_history = []
+            
         st.selectbox(
             "Truck",
             options=options,
             key="selected_truck_id",
             format_func=lambda option: truck_option_label(option, fleet),
-            on_change=invalidate_dashboard_state,
+            on_change=handle_truck_change, # Hook it here
         )
     with right:
         selected = selected_truck_for_caption(fleet)
