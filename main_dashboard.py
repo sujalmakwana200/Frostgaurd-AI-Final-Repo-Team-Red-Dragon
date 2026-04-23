@@ -1126,36 +1126,36 @@ def render_truck_selector():
 
     left, right = st.columns([1.25, 4.75])
     with left:
-        # FIX: Clear history when switching trucks
+        # Clear history when switching trucks to prevent chart spikes
         def handle_truck_change():
             invalidate_dashboard_state()
             st.session_state.temp_history = []
             st.session_state.speed_history = []
+            st.session_state.warning_log = []
             
         st.selectbox(
             "Truck",
             options=options,
             key="selected_truck_id",
             format_func=lambda option: truck_option_label(option, fleet),
-            on_change=handle_truck_change, # Hook it here
+            on_change=handle_truck_change, 
         )
     with right:
         selected = selected_truck_for_caption(fleet)
         reroute = selected.get("reroute") or {}
         target = reroute.get("target", {}) if isinstance(reroute, dict) else {}
         route_text = f" · KNN reroute to {target.get('name')}, {target.get('city')}" if target else ""
+        
+        ml_insight = selected.get("ml_insight") or {}
+        prediction = ml_insight.get("predicted_temp_30s", selected.get("temperature", "—"))
+        
         st.caption(
             f"🚚 {selected.get('truck_name', selected.get('truck_id'))} · {selected.get('truck_id')} · {selected.get('cargo')} · "
             f"{selected.get('origin', 'Origin')} → {selected.get('destination', 'Destination')} · "
             f"{selected.get('distance_travelled_km', 0)} km traveled · "
-            f"{selected.get('status')} · prediction {selected.get('ml_insight', {}).get('predicted_temp_30s', selected.get('temperature'))}°C"
+            f"{selected.get('status', 'WAITING')} · prediction {prediction}°C"
             f"{route_text}"
-        )
-
-
-# ──────────────────────────────────────────────────────────────
-#  FRAGMENTS — live updates without whole-page sleep/rerun loop
-# ──────────────────────────────────────────────────────────────
+        )─────────────────────────────────
 def render_header():
     s = get_dashboard_state()
     api_ok = s["api_ok"]
