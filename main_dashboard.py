@@ -718,7 +718,7 @@ def demo_fleet():
     fleet = []
     
     # --- The Speed Boost ---
-    SPEED_BOOST = 3.5  # 1.0 is normal, 3.5 is fast, 5.0 is zooming!
+    SPEED_BOOST = 1.0  # 1.0 is normal, 3.5 is fast, 5.0 is zooming!
     
     for idx, item in enumerate(FLEET_ROUTES):
         route = st.session_state.fleet_routes.get(item["truck_id"]) or st.session_state.main_route
