@@ -915,30 +915,36 @@ def get_dashboard_state(force=False):
     live_fleet = fetch_fleet()
     live_telemetry = fetch_latest()
     
-    # --- THE MERGE FIX ---
-    # 1. Start with the frontend's beautiful moving simulation
+    # 1. Start with the frontend's beautifully smooth, curvy OSRM simulation
     simulated_fleet = demo_fleet()
     
-    # 2. Grab any REAL data from the API
+    # 2. Grab any REAL data that just came in from the API
     real_data = {t["truck_id"]: t for t in live_fleet} if live_fleet else {}
     if live_telemetry:
         real_data[live_telemetry["truck_id"]] = live_telemetry
         
-    # 3. Merge them! If a truck sends real data, it overrides the simulation.
+    # 3. THE SMART MERGE: Keep the smooth GPS from the simulation, 
+    # but overwrite the temperature and ML alerts with the real API data!
     fleet = []
     for sim_truck in simulated_fleet:
         tid = sim_truck["truck_id"]
         if tid in real_data:
-            fleet.append(real_data[tid])
+            real_truck = real_data[tid]
+            merged_truck = dict(sim_truck) # Inherit the smooth map coordinates
+            
+            # Inject the real data
+            merged_truck["temperature"] = real_truck.get("temperature", merged_truck["temperature"])
+            merged_truck["status"] = real_truck.get("status", merged_truck["status"])
+            merged_truck["timestamp"] = real_truck.get("timestamp", merged_truck["timestamp"])
+            
+            if "ml_insight" in real_truck:
+                merged_truck["ml_insight"] = real_truck["ml_insight"]
+            if "reroute" in real_truck:
+                merged_truck["reroute"] = real_truck["reroute"]
+                
+            fleet.append(merged_truck)
         else:
             fleet.append(sim_truck)
-            
-    # Catch any unexpected real trucks that aren't in our config
-    existing_ids = {t["truck_id"] for t in fleet}
-    for tid, real_truck in real_data.items():
-        if tid not in existing_ids:
-            fleet.append(real_truck)
-    # ---------------------
 
     fleet = enrich_fleet_with_dataset(fleet)
     telemetry = choose_focus_truck(fleet)
@@ -981,7 +987,6 @@ def get_dashboard_state(force=False):
     st.session_state.last_snapshot = snapshot
     st.session_state.last_snapshot_at = now
     return snapshot
-
 def voice_alert(snapshot):
     fleet = snapshot.get("fleet") or [snapshot]
     alert_trucks = [truck for truck in fleet if truck.get("status") in {"WARNING", "CRITICAL"}]
