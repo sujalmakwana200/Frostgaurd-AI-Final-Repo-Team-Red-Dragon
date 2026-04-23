@@ -716,50 +716,24 @@ def demo_fleet():
     elapsed = max(time.time() - st.session_state.demo_started_at, 0)
     failure = time.time() < st.session_state.failure_until
     fleet = []
+    
+    # --- ADD THIS SPEED BOOST ---
+    SPEED_BOOST = 3.5  # 1.0 is normal, 3.5 is fast, 5.0 is zooming!
+    
     for idx, item in enumerate(FLEET_ROUTES):
         route = st.session_state.fleet_routes.get(item["truck_id"]) or st.session_state.main_route
         sample = dataset_sample_for_truck(idx)
         route_total_hint = route_distance_km(route) if route else 0.0
-        cycle = 260 + idx * 22 + min(route_total_hint, 600) * 0.25
+        
+        # --- DIVIDE THE CYCLE BY THE SPEED BOOST ---
+        cycle = (260 + idx * 22 + min(route_total_hint, 600) * 0.25) / SPEED_BOOST
+        
         progress = (((elapsed + float(item.get("start_offset", 0))) / cycle) + idx * 0.025) % 1.0
         lat, lon = route_point(route, progress)
         route_total = route_total_hint
         travelled = route_total * progress
         forced = 3.4 if failure and idx in {0, 2} else 0.0
-        
-        # Check against None instead of > 0 so negative temps are kept
-        dataset_temp = safe_float(sample.get("data_temperature"), None)
-        simulated_temp = 4.8 + item["temp_offset"] + math.sin(elapsed / 18.0 + idx * 1.2) * 0.45
-        temp = round((dataset_temp if dataset_temp is not None else simulated_temp) + forced, 1)
-
-        status = risk_from_temp(temp)
-        speed = 66 + item["speed_offset"] + math.cos(elapsed / 14.0 + idx) * 6
-        ml = default_ml(temp)
-        telemetry = {
-            "truck_id": item["truck_id"],
-            "truck_name": item["truck_name"],
-            "cargo": item["cargo"],
-            "origin": item["origin"],
-            "destination": item["destination"],
-            "temperature": temp,
-            "status": status,
-            "lat": lat,
-            "lng": lon,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "speed_kmh": round(speed, 1),
-            "progress": round(progress, 4),
-            "route_total_km": round(route_total, 2),
-            "distance_travelled_km": round(travelled, 2),
-            "distance_remaining_km": round(max(route_total - travelled, 0.0), 2),
-            "ml_insight": ml,
-        }
-        telemetry = attach_dataset_context(telemetry, sample)
-        reroute = local_reroute(telemetry)
-        if reroute:
-            telemetry["reroute"] = reroute
-            ml["recommendation"] = f"KNN reroute: divert to {reroute['target']['name']}, {reroute['target']['city']}."
-        fleet.append(telemetry)
-    return fleet
+        # ... keep the rest of the function exactly the same!
 
 def choose_focus_truck(fleet):
     if not fleet:
