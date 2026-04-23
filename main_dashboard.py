@@ -1155,7 +1155,7 @@ def render_truck_selector():
             f"{selected.get('distance_travelled_km', 0)} km traveled · "
             f"{selected.get('status', 'WAITING')} · prediction {prediction}°C"
             f"{route_text}"
-        )─────────────────────────────────
+        )
 def render_header():
     s = get_dashboard_state()
     api_ok = s["api_ok"]
