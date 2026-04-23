@@ -717,7 +717,7 @@ def demo_fleet():
     failure = time.time() < st.session_state.failure_until
     fleet = []
     
-    # --- ADD THIS SPEED BOOST ---
+    # --- The Speed Boost ---
     SPEED_BOOST = 3.5  # 1.0 is normal, 3.5 is fast, 5.0 is zooming!
     
     for idx, item in enumerate(FLEET_ROUTES):
@@ -725,7 +725,7 @@ def demo_fleet():
         sample = dataset_sample_for_truck(idx)
         route_total_hint = route_distance_km(route) if route else 0.0
         
-        # --- DIVIDE THE CYCLE BY THE SPEED BOOST ---
+        # Divide the cycle by the speed boost
         cycle = (260 + idx * 22 + min(route_total_hint, 600) * 0.25) / SPEED_BOOST
         
         progress = (((elapsed + float(item.get("start_offset", 0))) / cycle) + idx * 0.025) % 1.0
@@ -733,8 +733,41 @@ def demo_fleet():
         route_total = route_total_hint
         travelled = route_total * progress
         forced = 3.4 if failure and idx in {0, 2} else 0.0
-        # ... keep the rest of the function exactly the same!
+        
+        # Check against None instead of > 0 so negative temps are kept
+        dataset_temp = safe_float(sample.get("data_temperature"), None)
+        simulated_temp = 4.8 + item["temp_offset"] + math.sin(elapsed / 18.0 + idx * 1.2) * 0.45
+        temp = round((dataset_temp if dataset_temp is not None else simulated_temp) + forced, 1)
 
+        status = risk_from_temp(temp)
+        speed = 66 + item["speed_offset"] + math.cos(elapsed / 14.0 + idx) * 6
+        ml = default_ml(temp)
+        telemetry = {
+            "truck_id": item["truck_id"],
+            "truck_name": item["truck_name"],
+            "cargo": item["cargo"],
+            "origin": item["origin"],
+            "destination": item["destination"],
+            "temperature": temp,
+            "status": status,
+            "lat": lat,
+            "lng": lon,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "speed_kmh": round(speed, 1),
+            "progress": round(progress, 4),
+            "route_total_km": round(route_total, 2),
+            "distance_travelled_km": round(travelled, 2),
+            "distance_remaining_km": round(max(route_total - travelled, 0.0), 2),
+            "ml_insight": ml,
+        }
+        telemetry = attach_dataset_context(telemetry, sample)
+        reroute = local_reroute(telemetry)
+        if reroute:
+            telemetry["reroute"] = reroute
+            ml["recommendation"] = f"KNN reroute: divert to {reroute['target']['name']}, {reroute['target']['city']}."
+        fleet.append(telemetry)
+        
+    return fleet # <-- This is the crucial line that was missing!
 def choose_focus_truck(fleet):
     if not fleet:
         return {
@@ -1281,6 +1314,7 @@ def _legacy_render_fleet_board_unused():
 
 
 @st.fragment(run_every="15s")
+@st.fragment(run_every="15s")
 def render_map():
     s = get_dashboard_state()
     layers = []
@@ -1347,15 +1381,13 @@ def render_map():
         pickable=True,
     ))
 
-    # ... inside render_map() ...
-    
     st.pydeck_chart(pdk.Deck(
         layers=layers,
         initial_view_state=pdk.ViewState(
             latitude=s["lat"], 
             longitude=s["lon"], 
             zoom=10.5,        # Slightly closer zoom
-            pitch=60,         # Tilted up for a 3D cinematic feel! (Changed from 50)
+            pitch=60,         # Tilted up for a 3D cinematic feel
             bearing=-15       # Slight rotation for an isometric angle
         ),
         map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
@@ -1371,8 +1403,6 @@ def render_map():
             }
         },
     ))
-
-
 @st.fragment(run_every="6s")
 def render_details():
     s = get_dashboard_state()
