@@ -615,39 +615,33 @@ def api_online():
 def launch_services():
     if api_online():
         return
-
+    # FIX: Clean up old handles and processes
     proc = st.session_state.get("bridge_process")
-    if proc is not None and getattr(proc, "poll", lambda: None)() is None:
-        return
+    if proc is not None:
+        try:
+            proc.terminate()
+            if proc.stdout: proc.stdout.close()
+            if proc.stderr: proc.stderr.close()
+        except Exception:
+            pass
 
     base = os.path.dirname(os.path.abspath(__file__))
     logs = os.path.join(base, "logs")
     os.makedirs(logs, exist_ok=True)
-    stdout = open(os.path.join(logs, "bridge_stdout.log"), "a", encoding="utf-8")
-    stderr = open(os.path.join(logs, "bridge_stderr.log"), "a", encoding="utf-8")
-    popen_kwargs = {"cwd": base, "stdout": stdout, "stderr": stderr}
-    if hasattr(subprocess, "CREATE_NO_WINDOW"):
-        popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-
-    bridge_path = None
-    for name in ("bridge.py", "Bridge.py"):
-        candidate = os.path.join(base, name)
-        if os.path.exists(candidate):
-            bridge_path = candidate
-            break
-
-    try:
-        if bridge_path:
-            st.session_state.bridge_process = subprocess.Popen([sys.executable, bridge_path], **popen_kwargs)
-        elif os.path.exists(os.path.join(base, "api.py")):
-            st.session_state.bridge_process = subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "5000"],
-                **popen_kwargs,
-            )
+    
+    # FIX: Call api.py, forget Bridge.py
+    api_path = os.path.join(base, "api.py")
+    if os.path.exists(api_path):
+        stdout = open(os.path.join(logs, "api_stdout.log"), "a", encoding="utf-8")
+        stderr = open(os.path.join(logs, "api_stderr.log"), "a", encoding="utf-8")
+        popen_kwargs = {"cwd": base, "stdout": stdout, "stderr": stderr}
+        if hasattr(subprocess, "CREATE_NO_WINDOW"): popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        
+        st.session_state.bridge_process = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "5000"],
+            **popen_kwargs,
+        )
         st.session_state.last_bridge_launch = time.time()
-    except Exception:
-        pass
-
 
 def ensure_services():
     if api_online():
