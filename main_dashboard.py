@@ -728,7 +728,7 @@ def demo_fleet():
         # Divide the cycle by the speed boost
         cycle = (260 + idx * 22 + min(route_total_hint, 600) * 0.25) / SPEED_BOOST
         
-        progress = (((elapsed + float(item.get("start_offset", 0))) / cycle) + idx * 0.025) % 1.0
+        progress = (elapsed / cycle) % 1.0
         lat, lon = route_point(route, progress)
         route_total = route_total_hint
         travelled = route_total * progress
