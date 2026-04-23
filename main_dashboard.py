@@ -1099,8 +1099,10 @@ def voice_alert(snapshot):
 
 def reset_dashboard_state():
     for k, v in fresh_defaults().items():
-        st.session_state[k] = v
-
+        # SAFE RESET FIX: Do not reset the API connection state!
+        # This stops the white screen crash.
+        if k not in ["services_launched", "bridge_process", "last_bridge_launch"]:
+            st.session_state[k] = v
 
 def invalidate_dashboard_state():
     st.session_state.last_snapshot_at = 0.0
