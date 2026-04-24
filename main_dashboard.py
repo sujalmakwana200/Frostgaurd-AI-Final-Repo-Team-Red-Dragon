@@ -1524,7 +1524,7 @@ def render_details():
 
     st.markdown("<div style='height:0.3rem'></div>", unsafe_allow_html=True)
     f1, f2, f3, f4 = st.columns(4)
-   target = st.session_state.get("reroute_target")
+    target = st.session_state.get("reroute_target")
     dest = target["city"] if (st.session_state.get("rerouted") and target) else "Ahmedabad"
     f1.caption(f"📍 {s['lat']:.5f}°N  {s['lon']:.5f}°E")
     f2.caption(f"🏁 Destination: {dest}")
