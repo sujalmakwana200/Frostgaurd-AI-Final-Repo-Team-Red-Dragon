@@ -169,7 +169,17 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,600;0,9..40,800&display=swap');
 
 html, body,
-/* Safely hide the "Running..." bar and Top Menu */
+/* 1. Make the background Dark Theme */
+html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+.main, .block-container {
+    background: #000 !important;
+    color: #E2E2E2 !important;
+    font-family: 'DM Sans', sans-serif !important;
+}
+
+/* 2. Safely hide the "Running..." bar and Top Menu */
 [data-testid="stStatusWidget"], 
 [data-testid="stToolbar"], 
 #MainMenu { 
