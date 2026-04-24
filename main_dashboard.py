@@ -414,8 +414,6 @@ html, body,
 # ──────────────────────────────────────────────────────────────
 def fresh_defaults() -> dict[str, Any]:
     return {
-def fresh_defaults() -> dict[str, Any]:
-    return {
         "rerouted": False,  # This must be here to clear the state on reset
         "services_launched": False,
         "temp_history": [],
@@ -1632,7 +1630,7 @@ def render_fleet_board():
     )
 
 
-def render_dashboard():
+
     ensure_services()
     ensure_routes()
     
