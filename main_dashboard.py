@@ -1234,7 +1234,7 @@ def render_metrics():
     m8.metric("⏱ ETA", "REROUTING 🧊" if st.session_state.rerouted else f"{s['eta_min']} min")
 
 
-@st.fragment(run_every="s")
+@st.fragment(run_every="3s")
 def render_map():
     s = get_dashboard_state()
     layers = []
