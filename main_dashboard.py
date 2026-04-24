@@ -875,6 +875,33 @@ def apply_trip_state(telemetry):
     st.session_state.last_lon = lon
 
     truck_route = st.session_state.fleet_routes.get(telemetry.get("truck_id"))
+    if status == "CRITICAL":
+        target = target_from_reroute(telemetry, lat, lon)
+        
+        is_new_reroute = not st.session_state.get("rerouted") or st.session_state.get("reroute_target", {}).get("name") != target["name"]
+        
+        if is_new_reroute:
+            st.session_state.reroute_target = target
+            st.session_state.rerouted = True
+            
+            new_leg = fetch_route(lon, lat, target["lon"], target["lat"])
+            st.session_state.active_route = new_leg
+            
+            truck_id = telemetry.get("truck_id")
+            if truck_route and new_leg:
+                closest_idx = min(range(len(truck_route)), key=lambda i: haversine(lat, lon, truck_route[i][0], truck_route[i][1]))
+                stitched = truck_route[:closest_idx] + new_leg
+                if len(stitched) < len(truck_route):
+                    stitched.extend([stitched[-1]] * (len(truck_route) - len(stitched)))
+                st.session_state.fleet_routes[truck_id] = stitched
+
+        prev_msgs = [e["msg"] for e in st.session_state.warning_log[:4]]
+        msg = f"CRITICAL {temp}°C — {telemetry.get('truck_id')} rerouting to {target['name']}, {target['city']}"
+        if not any(telemetry.get("truck_id", "") in m and "CRITICAL" in m for m in prev_msgs):
+            st.session_state.warning_log.insert(0, {
+                "time": ts, "icon": "🚨", "color": "#FF3B3B",
+                "msg": msg,
+            })
     elif status == "WARNING":
         if truck_route:
             st.session_state.active_route = truck_route
