@@ -172,11 +172,11 @@ html, body,
     color: #E2E2E2 !important;
     font-family: 'DM Sans', sans-serif !important;
 }
-[data-testid="collapsedControl"],
-[data-testid="stToolbar"],
-[data-testid="stDecoration"],
-[data-testid="stStatusWidget"],
-#MainMenu, header { display: none !important; }
+//[data-testid="collapsedControl"],
+//[data-testid="stToolbar"],
+//[data-testid="stDecoration"],
+//[data-testid="stStatusWidget"],
+//#MainMenu, header { display: none !important; }
 
 .block-container { padding: 1.2rem 1.8rem 2rem !important; }
 
