@@ -38,7 +38,7 @@ class TelemetryPayload(BaseModel):
     timestamp: str
     speed_kmh: float = Field(default=68.0)
     temp_min: Optional[float] = None
-    temp_max: Optional[float] = None
+    temp_max: Optional[float] = Non
     temp_std: Optional[float] = None
     frac_temp_above_6: Optional[float] = None
     frac_temp_above_8: Optional[float] = None
