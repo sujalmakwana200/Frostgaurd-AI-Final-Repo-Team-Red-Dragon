@@ -414,6 +414,7 @@ html, body,
 # ──────────────────────────────────────────────────────────────
 def fresh_defaults() -> dict[str, Any]:
     return {
+        "rerouted": False,
         "services_launched": False,
         "temp_history": [],
         "speed_history": [],
