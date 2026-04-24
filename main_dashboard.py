@@ -414,7 +414,9 @@ html, body,
 # ──────────────────────────────────────────────────────────────
 def fresh_defaults() -> dict[str, Any]:
     return {
-        "rerouted": False,
+def fresh_defaults() -> dict[str, Any]:
+    return {
+        "rerouted": False,  # This must be here to clear the state on reset
         "services_launched": False,
         "temp_history": [],
         "speed_history": [],
@@ -443,7 +445,6 @@ def fresh_defaults() -> dict[str, Any]:
         "bridge_process": None,
         "last_bridge_launch": 0.0,
     }
-
 
 for _k, _v in fresh_defaults().items():
     if _k not in st.session_state:
