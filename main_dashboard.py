@@ -179,6 +179,16 @@ html, body,
     font-family: 'DM Sans', sans-serif !important;
 }
 
+/* 2. NUKE the Header and Running Bar completely */
+header, 
+[data-testid="stHeader"],
+[data-testid="stStatusWidget"], 
+[data-testid="stToolbar"] { 
+    display: none !important; 
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
 /* 2. Safely hide the "Running..." bar and Top Menu */
 [data-testid="stStatusWidget"], 
 [data-testid="stToolbar"], 
