@@ -902,7 +902,7 @@ def apply_trip_state(telemetry):
                 "time": ts, "icon": "🚨", "color": "#FF3B3B",
                 "msg": msg,
             })
-        elif status == "WARNING":
+    elif status == "WARNING":
         if truck_route:
             st.session_state.active_route = truck_route
             
