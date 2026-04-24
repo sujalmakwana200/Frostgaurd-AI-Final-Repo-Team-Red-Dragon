@@ -169,12 +169,11 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,600;0,9..40,800&display=swap');
 
 html, body,
-[data-testid="stAppViewContainer"],
-[data-testid="stMain"],
-.main, .block-container {
-    background: #000 !important;
-    color: #E2E2E2 !important;
-    font-family: 'DM Sans', sans-serif !important;
+/* Safely hide the "Running..." bar and Top Menu */
+[data-testid="stStatusWidget"], 
+[data-testid="stToolbar"], 
+#MainMenu { 
+    display: none !important; 
 }
 
 .block-container { padding: 1.2rem 1.8rem 2rem !important; }
@@ -1235,7 +1234,7 @@ def render_metrics():
     m8.metric("⏱ ETA", "REROUTING 🧊" if st.session_state.rerouted else f"{s['eta_min']} min")
 
 
-@st.fragment(run_every="1s")
+@st.fragment(run_every="s")
 def render_map():
     s = get_dashboard_state()
     layers = []
@@ -1326,7 +1325,7 @@ def render_map():
     ))
 
 
-@st.fragment(run_every="6s")
+@st.fragment(run_every="3s")
 def render_details():
     s = get_dashboard_state()
     ml = s["ml"]
