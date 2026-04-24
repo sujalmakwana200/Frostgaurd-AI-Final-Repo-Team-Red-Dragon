@@ -1240,13 +1240,15 @@ def render_header():
 
 
 @st.fragment(run_every="4s")
+@st.fragment(run_every="4s")
 def render_alerts():
     s = get_dashboard_state()
     voice_alert(s)
-    if s["is_crit"] and st.session_state.rerouted:
+    # Change this line to check if reroute_target actually exists
+    if s["is_crit"] and st.session_state.get("rerouted") and st.session_state.get("reroute_target"):
         t = st.session_state.reroute_target
         st.error(f"🚨 CRITICAL {s['temp']}°C — REROUTING TO **{t['name'].upper()}** · {t['city'].upper()}")
-    elif s["is_warn"]:
+    # ... rest of the function
         st.warning(f"⚠️ WARNING — Temperature rising: **{s['temp']}°C** · Compressor activated")
     elif not s["api_ok"]:
         st.info("⏳ Connecting to bridge — dashboard rendering with last known state.")
