@@ -875,33 +875,6 @@ def apply_trip_state(telemetry):
     st.session_state.last_lon = lon
 
     truck_route = st.session_state.fleet_routes.get(telemetry.get("truck_id"))
-    if status == "CRITICAL":
-        target = target_from_reroute(telemetry, lat, lon)
-        
-        is_new_reroute = not st.session_state.get("rerouted") or st.session_state.get("reroute_target", {}).get("name") != target["name"]
-        
-        if is_new_reroute:
-            st.session_state.reroute_target = target
-            st.session_state.rerouted = True
-            
-            new_leg = fetch_route(lon, lat, target["lon"], target["lat"])
-            st.session_state.active_route = new_leg
-            
-            truck_id = telemetry.get("truck_id")
-            if truck_route and new_leg:
-                closest_idx = min(range(len(truck_route)), key=lambda i: haversine(lat, lon, truck_route[i][0], truck_route[i][1]))
-                stitched = truck_route[:closest_idx] + new_leg
-                if len(stitched) < len(truck_route):
-                    stitched.extend([stitched[-1]] * (len(truck_route) - len(stitched)))
-                st.session_state.fleet_routes[truck_id] = stitched
-
-        prev_msgs = [e["msg"] for e in st.session_state.warning_log[:4]]
-        msg = f"CRITICAL {temp}°C — {telemetry.get('truck_id')} rerouting to {target['name']}, {target['city']}"
-        if not any(telemetry.get("truck_id", "") in m and "CRITICAL" in m for m in prev_msgs):
-            st.session_state.warning_log.insert(0, {
-                "time": ts, "icon": "🚨", "color": "#FF3B3B",
-                "msg": msg,
-            })
     elif status == "WARNING":
         if truck_route:
             st.session_state.active_route = truck_route
@@ -916,19 +889,13 @@ def apply_trip_state(telemetry):
                 "time": ts, "icon": "⚠️", "color": "#FFC107",
                 "msg": f"{telemetry.get('truck_id')} temp rising: {temp}°C — compressor activated",
             })
-     else:
+    else:
         if truck_route:
             st.session_state.active_route = truck_route
             
         if not st.session_state.get("rerouted"):
             st.session_state.rerouted = False
             st.session_state.reroute_target = None
-    else:
-        if truck_route:
-            st.session_state.active_route = truck_route
-        st.session_state.rerouted = False
-        st.session_state.reroute_target = None
-
 def get_dashboard_state(force=False):
     ensure_services()
     ensure_routes()
@@ -1042,19 +1009,27 @@ def voice_alert(snapshot):
             f"FrostGuard critical alert. {truck.get('truck_name', truck.get('truck_id'))} temperature "
             f"{truck.get('temperature')} degrees Celsius. Rerouting to {target.get('name')}, {target.get('city')}."
         )
-    elif status == "CRITICAL":
-        message = (
-            f"FrostGuard critical alert. {truck.get('truck_name', truck.get('truck_id'))} temperature "
-            f"{truck.get('temperature')} degrees Celsius."
-        )
+    elif status == "WARNING":
+        if truck_route:
+            st.session_state.active_route = truck_route
+            
+        if not st.session_state.get("rerouted"):
+            st.session_state.rerouted = False
+            st.session_state.reroute_target = None
+            
+        prev_msgs = [e["msg"] for e in st.session_state.warning_log[:2]]
+        if not any("WARNING" in m or "rising" in m for m in prev_msgs):
+            st.session_state.warning_log.insert(0, {
+                "time": ts, "icon": "⚠️", "color": "#FFC107",
+                "msg": f"{telemetry.get('truck_id')} temp rising: {temp}°C — compressor activated",
+            })
     else:
-        message = (
-            f"FrostGuard warning. {truck.get('truck_name', truck.get('truck_id'))} temperature rising to "
-            f"{truck.get('temperature')} degrees Celsius."
-        )
-
-    st.session_state.spoken_alert_keys = spoken + [alert_key]
-
+        if truck_route:
+            st.session_state.active_route = truck_route
+            
+        if not st.session_state.get("rerouted"):
+            st.session_state.rerouted = False
+            st.session_state.reroute_target = None
     components.html(
         f"""
 <script>
