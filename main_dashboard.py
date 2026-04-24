@@ -929,7 +929,6 @@ def apply_trip_state(telemetry):
         st.session_state.rerouted = False
         st.session_state.reroute_target = None
 
-
 def get_dashboard_state(force=False):
     ensure_services()
     ensure_routes()
