@@ -175,7 +175,7 @@ html, body,
 //[data-testid="collapsedControl"],
 //[data-testid="stToolbar"],
 //[data-testid="stDecoration"],
-//[data-testid="stStatusWidget"],
+/*[data-testid="stStatusWidget"],/*
 //#MainMenu, header { display: none !important; }
 
 .block-container { padding: 1.2rem 1.8rem 2rem !important; }
@@ -1524,7 +1524,8 @@ def render_details():
 
     st.markdown("<div style='height:0.3rem'></div>", unsafe_allow_html=True)
     f1, f2, f3, f4 = st.columns(4)
-    dest = st.session_state.reroute_target["city"] if st.session_state.rerouted else "Ahmedabad"
+   target = st.session_state.get("reroute_target")
+    dest = target["city"] if (st.session_state.get("rerouted") and target) else "Ahmedabad"
     f1.caption(f"📍 {s['lat']:.5f}°N  {s['lon']:.5f}°E")
     f2.caption(f"🏁 Destination: {dest}")
     f3.caption(f"🛣 {'NH48 → Emergency Reroute' if st.session_state.rerouted else 'NH48  Vadodara → Ahmedabad'}")
