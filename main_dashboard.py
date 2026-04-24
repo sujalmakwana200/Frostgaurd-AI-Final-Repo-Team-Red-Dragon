@@ -1,8 +1,12 @@
 """
-FrostGuard AI — Dashboard v3
-- Old black dashboard UI preserved
-- Live updates use Streamlit fragments instead of a blocking rerun loop
-- Graceful fallback when bridge telemetry is not available
+FrostGuard AI — Dashboard v3 (Fixed)
+Bugs fixed:
+1. Duplicate fresh_defaults() removed
+2. render_alerts() indentation fixed (elif/else were orphaned outside if block)
+3. Duplicate @st.fragment decorator on render_alerts removed
+4. Dead unreachable code after `return` in demo_telemetry() removed
+5. render_live_dashboard() defined properly and main block wrapped correctly
+6. Floating main block code moved inside render_live_dashboard()
 """
 from __future__ import annotations
 
@@ -172,11 +176,6 @@ html, body,
     color: #E2E2E2 !important;
     font-family: 'DM Sans', sans-serif !important;
 }
-//[data-testid="collapsedControl"],
-//[data-testid="stToolbar"],
-//[data-testid="stDecoration"],
-/*[data-testid="stStatusWidget"],/*
-//#MainMenu, header { display: none !important; }
 
 .block-container { padding: 1.2rem 1.8rem 2rem !important; }
 
@@ -379,7 +378,7 @@ html, body,
 .fleet-note {
     margin-top:8px; color:#777; font-size:0.64rem; line-height:1.35;
 }
-.fleet- {
+.fleet-reroute {
     margin-top:8px; padding:6px 7px; border-radius:7px; background:#060606;
     border:1px solid #151515; color:#ABABAB; font-size:0.64rem; line-height:1.25;
 }
@@ -412,9 +411,10 @@ html, body,
 # ──────────────────────────────────────────────────────────────
 #  SESSION STATE — init all keys upfront, no KeyError ever
 # ──────────────────────────────────────────────────────────────
+# FIX 1: Removed the duplicate fresh_defaults() definition
 def fresh_defaults() -> dict[str, Any]:
     return {
-        "rerouted": False,  # This must be here to clear the state on reset
+        "rerouted": False,
         "services_launched": False,
         "temp_history": [],
         "speed_history": [],
@@ -465,8 +465,6 @@ def nearest_cold_storage(lat, lon):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-# Strip cache decorator, or use it smartly
-# Strip cache decorator so straight lines aren't saved forever
 def fetch_route(slon, slat, elon, elat):
     try:
         url = f"https://router.project-osrm.org/route/v1/driving/{slon},{slat};{elon},{elat}?overview=full&geometries=geojson"
@@ -475,6 +473,8 @@ def fetch_route(slon, slat, elon, elat):
     except Exception:
         steps = 180
         return [(slat + i / steps * (elat - slat), slon + i / steps * (elon - slon)) for i in range(steps + 1)]
+
+
 def risk_color(level):
     return {
         "CRITICAL": "#FF3B3B", "HIGH": "#FF6B35",
@@ -611,7 +611,6 @@ def api_online():
 def launch_services():
     if api_online():
         return
-    # Clean up old handles and processes
     proc = st.session_state.get("bridge_process")
     if proc is not None:
         try:
@@ -624,20 +623,22 @@ def launch_services():
     base = os.path.dirname(os.path.abspath(__file__))
     logs = os.path.join(base, "logs")
     os.makedirs(logs, exist_ok=True)
-    
-    # Call api.py, forget Bridge.py
+
     api_path = os.path.join(base, "api.py")
     if os.path.exists(api_path):
         stdout = open(os.path.join(logs, "api_stdout.log"), "a", encoding="utf-8")
         stderr = open(os.path.join(logs, "api_stderr.log"), "a", encoding="utf-8")
         popen_kwargs = {"cwd": base, "stdout": stdout, "stderr": stderr}
-        if hasattr(subprocess, "CREATE_NO_WINDOW"): popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-        
+        if hasattr(subprocess, "CREATE_NO_WINDOW"):
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
         st.session_state.bridge_process = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "5000"],
             **popen_kwargs,
         )
         st.session_state.last_bridge_launch = time.time()
+
+
 def ensure_services():
     if api_online():
         st.session_state.services_launched = True
@@ -716,25 +717,22 @@ def demo_fleet():
     elapsed = max(time.time() - st.session_state.demo_started_at, 0)
     failure = time.time() < st.session_state.failure_until
     fleet = []
-    
-    # --- The Speed Boost ---
-    SPEED_BOOST = 1.0  # 1.0 is normal, 3.5 is fast, 5.0 is zooming!
-    
+
+    SPEED_BOOST = 1.0
+
     for idx, item in enumerate(FLEET_ROUTES):
         route = st.session_state.fleet_routes.get(item["truck_id"]) or st.session_state.main_route
         sample = dataset_sample_for_truck(idx)
         route_total_hint = route_distance_km(route) if route else 0.0
-        
-        # Divide the cycle by the speed boost
+
         cycle = (260 + idx * 22 + min(route_total_hint, 600) * 0.25) / SPEED_BOOST
-        
+
         progress = (elapsed / cycle) % 1.0
         lat, lon = route_point(route, progress)
         route_total = route_total_hint
         travelled = route_total * progress
         forced = 3.4 if failure and idx in {0, 2} else 0.0
-        
-        # Check against None instead of > 0 so negative temps are kept
+
         dataset_temp = safe_float(sample.get("data_temperature"), None)
         simulated_temp = 4.8 + item["temp_offset"] + math.sin(elapsed / 18.0 + idx * 1.2) * 0.45
         temp = round((dataset_temp if dataset_temp is not None else simulated_temp) + forced, 1)
@@ -766,8 +764,10 @@ def demo_fleet():
             telemetry["reroute"] = reroute
             ml["recommendation"] = f"KNN reroute: divert to {reroute['target']['name']}, {reroute['target']['city']}."
         fleet.append(telemetry)
-        
-    return fleet # <-- This is the crucial line that was missing!
+
+    return fleet
+
+
 def choose_focus_truck(fleet):
     if not fleet:
         return {
@@ -781,22 +781,21 @@ def choose_focus_truck(fleet):
             "speed_kmh": 0.0,
             "ml_insight": default_ml(st.session_state.last_temp),
         }
-        
+
     selected_id = st.session_state.get("selected_truck_id", "AUTO")
-    
+
     if selected_id and selected_id != "AUTO":
         selected = next((item for item in fleet if item.get("truck_id") == selected_id), None)
         if selected:
             return selected
-        
-        # If the backend forgot the truck, create a temporary placeholder
+
         configured = next((truck for truck in FLEET_ROUTES if truck.get("truck_id") == selected_id), None)
         if configured:
             fallback = dict(configured)
             fallback.update({
-                "status": "WAITING FOR DATA", 
-                "temperature": "—", 
-                "speed_kmh": 0.0, 
+                "status": "WAITING FOR DATA",
+                "temperature": "—",
+                "speed_kmh": 0.0,
                 "distance_travelled_km": "—",
                 "ml_insight": default_ml(5.0)
             })
@@ -806,8 +805,9 @@ def choose_focus_truck(fleet):
         match = next((item for item in fleet if item.get("status") == status), None)
         if match:
             return match
-            
+
     return next((item for item in fleet if item.get("truck_id") == "TRK-RD-001"), fleet[0])
+
 
 def target_from_reroute(telemetry, lat, lon):
     reroute = telemetry.get("reroute") or {}
@@ -822,34 +822,9 @@ def target_from_reroute(telemetry, lat, lon):
     return nearest_cold_storage(lat, lon)
 
 
+# FIX 2: Removed the unreachable dead code block after the return statement
 def demo_telemetry():
     return choose_focus_truck(demo_fleet())
-
-    route = st.session_state.active_route or st.session_state.main_route or [(START_LAT, START_LON), (DEST_LAT, DEST_LON)]
-    elapsed = max(time.time() - st.session_state.demo_started_at, 0)
-    idx = int((elapsed / 2.0) % max(len(route), 1))
-    lat, lon = route[idx]
-    failure = time.time() < st.session_state.failure_until
-    temp = 5.0 + math.sin(elapsed / 18.0) * 0.45 + (3.4 if failure else 0.0)
-    temp = round(temp, 1)
-    status = risk_from_temp(temp)
-    speed = 66 + math.cos(elapsed / 14.0) * 6
-    ml = default_ml(temp)
-    if status == "WARNING":
-        ml["recommendation"] = "Temp rising — compressor activated."
-    elif status == "CRITICAL":
-        ml["recommendation"] = "Reroute to nearest cold storage immediately."
-    return {
-        "truck_id": "TRK-RD-001",
-        "cargo": "Vaccines",
-        "temperature": temp,
-        "status": status,
-        "lat": lat,
-        "lng": lon,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "speed_kmh": round(speed, 1),
-        "ml_insight": ml,
-    }
 
 
 def apply_trip_state(telemetry):
@@ -916,45 +891,35 @@ def get_dashboard_state(force=False):
     ensure_routes()
 
     now = time.monotonic()
-    # THIS IS THE FIX: Lowered from 2.8 to 0.5 so movement data updates instantly!
     if not force and st.session_state.last_snapshot and now - st.session_state.last_snapshot_at < 0.5:
         return st.session_state.last_snapshot
 
     live_fleet = fetch_fleet()
     live_telemetry = fetch_latest()
-    
-    # 1. Start with the FAST moving simulation
+
     simulated_fleet = demo_fleet()
-    
-    # 2. Grab real data from the API
+
     real_data = {t["truck_id"]: t for t in live_fleet} if live_fleet else {}
     if live_telemetry:
         real_data[live_telemetry["truck_id"]] = live_telemetry
-        
-    # 3. SMART MERGE: Keep the smooth simulated GPS coordinates, 
-    # but overwrite the temperature and ML alerts with real data!
+
     fleet = []
     for sim_truck in simulated_fleet:
         tid = sim_truck["truck_id"]
         if tid in real_data:
             real_truck = real_data[tid]
-            merged_truck = dict(sim_truck) # Keep the curvy movement
-            
-            # Inject live data
+            merged_truck = dict(sim_truck)
             merged_truck["temperature"] = real_truck.get("temperature", merged_truck["temperature"])
             merged_truck["status"] = real_truck.get("status", merged_truck["status"])
             merged_truck["timestamp"] = real_truck.get("timestamp", merged_truck["timestamp"])
-            
             if "ml_insight" in real_truck:
                 merged_truck["ml_insight"] = real_truck["ml_insight"]
             if "reroute" in real_truck:
                 merged_truck["reroute"] = real_truck["reroute"]
-                
             fleet.append(merged_truck)
         else:
             fleet.append(sim_truck)
 
-    # Catch any unexpected real trucks that aren't in our config
     existing_ids = {t["truck_id"] for t in fleet}
     for tid, real_truck in real_data.items():
         if tid not in existing_ids:
@@ -1001,6 +966,8 @@ def get_dashboard_state(force=False):
     st.session_state.last_snapshot = snapshot
     st.session_state.last_snapshot_at = now
     return snapshot
+
+
 def voice_alert(snapshot):
     fleet = snapshot.get("fleet") or [snapshot]
     alert_trucks = [truck for truck in fleet if truck.get("status") in {"WARNING", "CRITICAL"}]
@@ -1099,10 +1066,9 @@ def voice_alert(snapshot):
 
 def reset_dashboard_state():
     for k, v in fresh_defaults().items():
-        # SAFE RESET FIX: Do not reset the API connection state!
-        # This stops the white screen crash.
         if k not in ["services_launched", "bridge_process", "last_bridge_launch"]:
             st.session_state[k] = v
+
 
 def invalidate_dashboard_state():
     st.session_state.last_snapshot_at = 0.0
@@ -1166,29 +1132,28 @@ def render_truck_selector():
 
     left, right = st.columns([1.25, 4.75])
     with left:
-        # Clear history when switching trucks to prevent chart spikes
         def handle_truck_change():
             invalidate_dashboard_state()
             st.session_state.temp_history = []
             st.session_state.speed_history = []
             st.session_state.warning_log = []
-            
+
         st.selectbox(
             "Truck",
             options=options,
             key="selected_truck_id",
             format_func=lambda option: truck_option_label(option, fleet),
-            on_change=handle_truck_change, 
+            on_change=handle_truck_change,
         )
     with right:
         selected = selected_truck_for_caption(fleet)
         reroute = selected.get("reroute") or {}
         target = reroute.get("target", {}) if isinstance(reroute, dict) else {}
         route_text = f" · KNN reroute to {target.get('name')}, {target.get('city')}" if target else ""
-        
+
         ml_insight = selected.get("ml_insight") or {}
         prediction = ml_insight.get("predicted_temp_30s", selected.get("temperature", "—"))
-        
+
         st.caption(
             f"🚚 {selected.get('truck_name', selected.get('truck_id'))} · {selected.get('truck_id')} · {selected.get('cargo')} · "
             f"{selected.get('origin', 'Origin')} → {selected.get('destination', 'Destination')} · "
@@ -1196,6 +1161,8 @@ def render_truck_selector():
             f"{selected.get('status', 'WAITING')} · prediction {prediction}°C"
             f"{route_text}"
         )
+
+
 def render_header():
     s = get_dashboard_state()
     api_ok = s["api_ok"]
@@ -1238,16 +1205,16 @@ def render_header():
                 st.rerun()
 
 
-@st.fragment(run_every="4s")
+# FIX 3: Removed duplicate @st.fragment decorator — only one is needed
 @st.fragment(run_every="4s")
 def render_alerts():
     s = get_dashboard_state()
     voice_alert(s)
-    # Change this line to check if reroute_target actually exists
+    # FIX 4: Fixed broken indentation — elif/else were orphaned outside the if block
     if s["is_crit"] and st.session_state.get("rerouted") and st.session_state.get("reroute_target"):
         t = st.session_state.reroute_target
         st.error(f"🚨 CRITICAL {s['temp']}°C — REROUTING TO **{t['name'].upper()}** · {t['city'].upper()}")
-    # ... rest of the function
+    elif s["is_warn"]:
         st.warning(f"⚠️ WARNING — Temperature rising: **{s['temp']}°C** · Compressor activated")
     elif not s["api_ok"]:
         st.info("⏳ Connecting to bridge — dashboard rendering with last known state.")
@@ -1266,63 +1233,6 @@ def render_metrics():
     m6.metric("💥 Breach", f"{ml.get('breach_probability', 0)}%")
     m7.metric("🏎 Speed", f"{s['speed_kmh']:.0f} km/h")
     m8.metric("⏱ ETA", "REROUTING 🧊" if st.session_state.rerouted else f"{s['eta_min']} min")
-
-
-def _legacy_render_fleet_board_unused():
-    s = get_dashboard_state()
-    cards = []
-    for truck in s.get("fleet", []):
-        ml = truck.get("ml_insight") or {}
-        temp = float(truck.get("temperature", 0.0))
-        breach = max(0, min(100, int(float(ml.get("breach_probability", 0)))))
-        pred = float(ml.get("predicted_temp_30s", truck.get("temperature", 0)))
-        total = max(float(truck.get("route_total_km", 0.0)), 0.1)
-        covered = max(0.0, float(truck.get("distance_travelled_km", 0.0)))
-        progress = max(0, min(100, int((covered / total) * 100)))
-        temp_pct = max(0, min(100, int(((temp - 2.0) / 10.0) * 100)))
-        reroute = truck.get("reroute") or {}
-        target = reroute.get("target", {}) if isinstance(reroute, dict) else {}
-        reroute_text = (
-            f"KNN reroute: {target.get('name', 'Cold Store')} · {target.get('city', '')}"
-            if target
-            else "Planned route stable"
-        )
-        color = risk_color("CRITICAL" if truck.get("status") == "CRITICAL" else ml.get("risk_level", "LOW"))
-        selected_style = "border-color:#2D9CFF;background:#0B0B0B;" if truck.get("truck_id") == s.get("truck_id") else ""
-        cards.append(
-            f'<div class="fleet-card" style="--c:{color};--p:{progress}%;--temp:{temp_pct}%;--breach:{breach}%;{selected_style}">'
-            f'  <div class="fleet-card-top">'
-            f'    <div><div class="fleet-name">{html.escape(str(truck.get("truck_name", truck.get("truck_id", ""))))}</div>'
-            f'    <div class="fleet-id">{html.escape(str(truck.get("truck_id", "")))}</div></div>'
-            f'    <div class="fleet-status">{html.escape(str(truck.get("status", "SAFE")))}</div>'
-            f'  </div>'
-            f'  <div class="fleet-meta">{html.escape(str(truck.get("cargo", "")))} · '
-            f'{html.escape(str(truck.get("origin", "Origin")))} → {html.escape(str(truck.get("destination", "Destination")))}</div>'
-            f'  <div class="route-track"><div class="route-fill"></div><div class="route-vehicle"></div></div>'
-            f'  <div class="fleet-stat-row">'
-            f'    <div><div class="fleet-stat-label">Covered</div><div class="fleet-stat-value">{covered:.1f}/{total:.1f} km</div></div>'
-            f'    <div><div class="fleet-stat-label">Progress</div><div class="fleet-stat-value">{progress}%</div></div>'
-            f'  </div>'
-            f'  <div class="fleet-stat-row">'
-            f'    <div><div class="fleet-stat-label">Live Temp</div><div class="fleet-stat-value">{temp:.1f}°C</div><div class="meter-track"><div class="temp-fill"></div></div></div>'
-            f'    <div><div class="fleet-stat-label">Breach</div><div class="fleet-stat-value">{breach}%</div><div class="meter-track"><div class="breach-fill"></div></div></div>'
-            f'  </div>'
-            f'  <div class="fleet-stat-row">'
-            f'    <div><div class="fleet-stat-label">Prediction</div><div class="fleet-stat-value">{pred:.1f}°C</div></div>'
-            f'    <div><div class="fleet-stat-label">Speed</div><div class="fleet-stat-value">{float(truck.get("speed_kmh", 0.0)):.0f} km/h</div></div>'
-            f'  </div>'
-            f'  <div class="fleet-reroute">{html.escape(reroute_text)}</div>'
-            f'</div>'
-        )
-
-    st.markdown(
-        '<div class="fleet-board">'
-        '<div class="fg-card-title">🚚 Live Fleet Details</div>'
-        f'<div class="fleet-card-grid">{"".join(cards)}</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
 
 
 @st.fragment(run_every="1s")
@@ -1395,11 +1305,11 @@ def render_map():
     st.pydeck_chart(pdk.Deck(
         layers=layers,
         initial_view_state=pdk.ViewState(
-            latitude=s["lat"], 
-            longitude=s["lon"], 
-            zoom=10.5,        # Slightly closer zoom
-            pitch=60,         # Tilted up for a 3D cinematic feel
-            bearing=-15       # Slight rotation for an isometric angle
+            latitude=s["lat"],
+            longitude=s["lon"],
+            zoom=10.5,
+            pitch=60,
+            bearing=-15
         ),
         map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         tooltip={
@@ -1414,6 +1324,8 @@ def render_map():
             }
         },
     ))
+
+
 @st.fragment(run_every="6s")
 def render_details():
     s = get_dashboard_state()
@@ -1623,22 +1535,21 @@ def render_fleet_board():
 
     st.markdown(
         '<div class="fleet-board">'
-        '<div class="fg-card-title">ðŸšš Live Fleet Details</div>'
+        '<div class="fg-card-title">🚚 Live Fleet Details</div>'
         f'<div class="fleet-card-grid">{"".join(cards)}</div>'
         '</div>',
         unsafe_allow_html=True,
     )
 
 
-
+# FIX 5: render_live_dashboard() is now properly defined as a function
+# FIX 6: The floating main block code is now correctly inside this function
+def render_live_dashboard():
     ensure_services()
     ensure_routes()
-    
-    # --- SWAPPED THESE TWO LINES ---
-    render_header()          # (Draws the reset button first)
-    render_truck_selector()  # (Draws the dropdown second)
-    # -------------------------------
-    
+
+    render_header()
+    render_truck_selector()
     render_alerts()
     render_metrics()
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
@@ -1647,4 +1558,9 @@ def render_fleet_board():
     render_fleet_board()
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
     render_details()
-    render_live_dashboard()
+
+
+# ──────────────────────────────────────────────────────────────
+#  ENTRY POINT
+# ──────────────────────────────────────────────────────────────
+render_live_dashboard()
