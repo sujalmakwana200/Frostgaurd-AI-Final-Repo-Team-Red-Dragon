@@ -1,12 +1,5 @@
 """
-FrostGuard AI — Dashboard v3 (Fixed)
-Bugs fixed:
-1. Duplicate fresh_defaults() removed
-2. render_alerts() indentation fixed (elif/else were orphaned outside if block)
-3. Duplicate @st.fragment decorator on render_alerts removed
-4. Dead unreachable code after `return` in demo_telemetry() removed
-5. render_live_dashboard() defined properly and main block wrapped correctly
-6. Floating main block code moved inside render_live_dashboard()
+FrostGuard AI — Dashboard v3 (Final 5 PM Fix)
 """
 from __future__ import annotations
 
@@ -168,7 +161,6 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,600;0,9..40,800&display=swap');
 
-html, body,
 /* 1. Make the background Dark Theme */
 html, body,
 [data-testid="stAppViewContainer"],
@@ -187,13 +179,6 @@ header,
     display: none !important; 
     visibility: hidden !important;
     opacity: 0 !important;
-}
-
-/* 2. Safely hide the "Running..." bar and Top Menu */
-[data-testid="stStatusWidget"], 
-[data-testid="stToolbar"], 
-#MainMenu { 
-    display: none !important; 
 }
 
 .block-container { padding: 1.2rem 1.8rem 2rem !important; }
@@ -430,7 +415,6 @@ header,
 # ──────────────────────────────────────────────────────────────
 #  SESSION STATE — init all keys upfront, no KeyError ever
 # ──────────────────────────────────────────────────────────────
-# FIX 1: Removed the duplicate fresh_defaults() definition
 def fresh_defaults() -> dict[str, Any]:
     return {
         "rerouted": False,
@@ -841,7 +825,6 @@ def target_from_reroute(telemetry, lat, lon):
     return nearest_cold_storage(lat, lon)
 
 
-# FIX 2: Removed the unreachable dead code block after the return statement
 def demo_telemetry():
     return choose_focus_truck(demo_fleet())
 
@@ -923,6 +906,8 @@ def apply_trip_state(telemetry):
         if not st.session_state.get("rerouted"):
             st.session_state.rerouted = False
             st.session_state.reroute_target = None
+
+
 def get_dashboard_state(force=False):
     ensure_services()
     ensure_routes()
@@ -1036,27 +1021,19 @@ def voice_alert(snapshot):
             f"FrostGuard critical alert. {truck.get('truck_name', truck.get('truck_id'))} temperature "
             f"{truck.get('temperature')} degrees Celsius. Rerouting to {target.get('name')}, {target.get('city')}."
         )
-    elif status == "WARNING":
-        if truck_route:
-            st.session_state.active_route = truck_route
-            
-        if not st.session_state.get("rerouted"):
-            st.session_state.rerouted = False
-            st.session_state.reroute_target = None
-            
-        prev_msgs = [e["msg"] for e in st.session_state.warning_log[:2]]
-        if not any("WARNING" in m or "rising" in m for m in prev_msgs):
-            st.session_state.warning_log.insert(0, {
-                "time": ts, "icon": "⚠️", "color": "#FFC107",
-                "msg": f"{telemetry.get('truck_id')} temp rising: {temp}°C — compressor activated",
-            })
+    elif status == "CRITICAL":
+        message = (
+            f"FrostGuard critical alert. {truck.get('truck_name', truck.get('truck_id'))} temperature "
+            f"{truck.get('temperature')} degrees Celsius."
+        )
     else:
-        if truck_route:
-            st.session_state.active_route = truck_route
-            
-        if not st.session_state.get("rerouted"):
-            st.session_state.rerouted = False
-            st.session_state.reroute_target = None
+        message = (
+            f"FrostGuard warning. {truck.get('truck_name', truck.get('truck_id'))} temperature rising to "
+            f"{truck.get('temperature')} degrees Celsius."
+        )
+
+    st.session_state.spoken_alert_keys = spoken + [alert_key]
+
     components.html(
         f"""
 <script>
@@ -1250,12 +1227,10 @@ def render_header():
                 st.rerun()
 
 
-# FIX 3: Removed duplicate @st.fragment decorator — only one is needed
-@st.fragment(run_every="4s")
+@st.fragment(run_every=4)
 def render_alerts():
     s = get_dashboard_state()
     voice_alert(s)
-    # FIX 4: Fixed broken indentation — elif/else were orphaned outside the if block
     if s["is_crit"] and st.session_state.get("rerouted") and st.session_state.get("reroute_target"):
         t = st.session_state.reroute_target
         st.error(f"🚨 CRITICAL {s['temp']}°C — REROUTING TO **{t['name'].upper()}** · {t['city'].upper()}")
@@ -1265,7 +1240,7 @@ def render_alerts():
         st.info("⏳ Connecting to bridge — dashboard rendering with last known state.")
 
 
-@st.fragment(run_every="4s")
+@st.fragment(run_every=4)
 def render_metrics():
     s = get_dashboard_state()
     ml = s["ml"]
@@ -1280,7 +1255,7 @@ def render_metrics():
     m8.metric("⏱ ETA", "REROUTING 🧊" if st.session_state.rerouted else f"{s['eta_min']} min")
 
 
-@st.fragment(run_every="3s")
+@st.fragment(run_every=3)
 def render_map():
     s = get_dashboard_state()
     layers = []
@@ -1371,7 +1346,7 @@ def render_map():
     ))
 
 
-@st.fragment(run_every="3s")
+@st.fragment(run_every=3)
 def render_details():
     s = get_dashboard_state()
     ml = s["ml"]
@@ -1488,7 +1463,7 @@ def render_details():
     f4.caption(f"📊 WP {st.session_state.waypoint_idx}  ·  {st.session_state.dist_covered:.1f} km covered")
 
 
-@st.fragment(run_every="6s")
+@st.fragment(run_every=6)
 def render_fleet_board():
     s = get_dashboard_state()
     cards = []
@@ -1587,8 +1562,6 @@ def render_fleet_board():
     )
 
 
-# FIX 5: render_live_dashboard() is now properly defined as a function
-# FIX 6: The floating main block code is now correctly inside this function
 def render_live_dashboard():
     ensure_services()
     ensure_routes()
