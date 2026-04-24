@@ -902,17 +902,27 @@ def apply_trip_state(telemetry):
                 "time": ts, "icon": "🚨", "color": "#FF3B3B",
                 "msg": msg,
             })
-    elif status == "WARNING":
+        elif status == "WARNING":
         if truck_route:
             st.session_state.active_route = truck_route
-        st.session_state.rerouted = False
-        st.session_state.reroute_target = None
+            
+        if not st.session_state.get("rerouted"):
+            st.session_state.rerouted = False
+            st.session_state.reroute_target = None
+            
         prev_msgs = [e["msg"] for e in st.session_state.warning_log[:2]]
         if not any("WARNING" in m or "rising" in m for m in prev_msgs):
             st.session_state.warning_log.insert(0, {
                 "time": ts, "icon": "⚠️", "color": "#FFC107",
                 "msg": f"{telemetry.get('truck_id')} temp rising: {temp}°C — compressor activated",
             })
+    else:
+        if truck_route:
+            st.session_state.active_route = truck_route
+            
+        if not st.session_state.get("rerouted"):
+            st.session_state.rerouted = False
+            st.session_state.reroute_target = None
     else:
         if truck_route:
             st.session_state.active_route = truck_route
