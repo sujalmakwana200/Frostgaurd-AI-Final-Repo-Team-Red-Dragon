@@ -916,7 +916,7 @@ def apply_trip_state(telemetry):
                 "time": ts, "icon": "⚠️", "color": "#FFC107",
                 "msg": f"{telemetry.get('truck_id')} temp rising: {temp}°C — compressor activated",
             })
-    else:
+     else:
         if truck_route:
             st.session_state.active_route = truck_route
             
