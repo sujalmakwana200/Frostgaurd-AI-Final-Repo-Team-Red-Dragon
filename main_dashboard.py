@@ -1647,3 +1647,4 @@ def render_dashboard():
     render_fleet_board()
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
     render_details()
+    render_live_dashboard()
