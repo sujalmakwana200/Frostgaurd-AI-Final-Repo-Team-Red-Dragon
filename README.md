@@ -3,6 +3,8 @@
 
 > A production-grade fleet monitoring system for cold-chain medical cargo, built for Gujarat's pharmaceutical and blood-bank logistics corridors.
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-FrostGuard_AI-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://frostgaurd-ai-final-repo-team-red-dragon-hfjhbqjcrmwtpaagvyql4.streamlit.app/)
+
 ---
 
 ## Tech Stack
