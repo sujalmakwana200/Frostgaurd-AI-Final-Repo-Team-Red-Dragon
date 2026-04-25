@@ -1,205 +1,220 @@
+# FrostGuard AI 🧊
+### Cold Chain Command Center — Real-Time Healthcare Logistics Intelligence
 
-# FrostGuard AI - Cold Chain Command Center
+> A production-grade fleet monitoring system for cold-chain medical cargo, built for Gujarat's pharmaceutical and blood-bank logistics corridors.
 
-FrostGuard AI is a Streamlit dashboard for live cold-chain fleet monitoring. It tracks medical cargo trucks, forecasts temperature risk, shows KNN rerouting decisions, and speaks alert messages once per alert episode.
+---
 
-## Current Status
+## Tech Stack
 
-The project is stable for local demo and submission using:
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=for-the-badge&logo=flask&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-2.2-150458?style=for-the-badge&logo=pandas&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-1.26-013243?style=for-the-badge&logo=numpy&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Optional-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-Optional-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![PyDeck](https://img.shields.io/badge/PyDeck-Maps-FF6B35?style=for-the-badge&logo=mapbox&logoColor=white)
 
-```bash
-streamlit run main_dashboard.py
-```
+---
 
-`main_dashboard.py` remains the entry point. The dashboard auto-starts the local Flask bridge if it is offline, so users do not need to manually run `Bridge.py`.
+## Team
 
-## Main Features
+![Sharang](https://img.shields.io/badge/Sharang-Product_Owner-6C3483?style=for-the-badge&logo=producthunt&logoColor=white)
+![Alan](https://img.shields.io/badge/Alan-Business_SPOC-1A5276?style=for-the-badge&logo=handshake&logoColor=white)
+![Sujal](https://img.shields.io/badge/Sujal-Tech_Lead-E74C3C?style=for-the-badge&logo=lightning&logoColor=white)
+![Ritik](https://img.shields.io/badge/Ritik-Developer-2ECC71?style=for-the-badge&logo=github&logoColor=white)
+![Rohit](https://img.shields.io/badge/Rohit-Developer-2ECC71?style=for-the-badge&logo=github&logoColor=white)
+![Danish](https://img.shields.io/badge/Danish-QA-F39C12?style=for-the-badge&logo=checkmarx&logoColor=white)
+![Dheeraj](https://img.shields.io/badge/Dheeraj-Intern-95A5A6?style=for-the-badge&logo=graduationcap&logoColor=white)
 
-- Black FrostGuard dashboard theme with blue-accent fleet detail cards.
-- Live Streamlit fragments instead of a blocking refresh loop.
-- 13 trucks loaded from `config/frostguard_config.json`.
-- Multiple city routes, including local Gujarat and long-haul routes.
-- Road-style fleet progress strip with a small truck marker.
-- Real healthcare IoT dataset fields shown in each truck card:
-  - bag ID
-  - product type
-  - blood type
-  - hospital route
-  - live temperature
-  - temperature range
-  - humidity
-  - handling stress
-  - health index
-  - breach probability
-  - predicted temperature
-- KNN reroute support using `frostguard_knn.joblib`.
-- ML insight support through `frost_ml.py`.
-- Voice alerts prefer a female English browser voice when available.
-- Voice alerts speak only once per truck/status alert episode.
-- Optional Supabase sync through environment variables.
+---
 
-## Architecture
+## The Problem
 
-```text
-streamlit run main_dashboard.py
-        |
-        v
-main_dashboard.py
-        |
-        |-- auto-starts Bridge.py if /health is offline
-        |-- reads live fleet from /fleet and /latest
-        |-- renders Streamlit dashboard fragments
-        |-- shows map, metrics, alerts, truck cards, charts
-        |
-        v
-Bridge.py
-        |
-        |-- GET  /health
-        |-- GET  /fleet
-        |-- GET  /latest
-        |-- POST /telemetry
-        |-- GET  /ml_insight
-        |-- GET  /predictions
-        |-- GET  /summary
-        |-- POST /command
-        |-- POST /reset
-        |
-        v
-frost_ml.py + knn_adapter.py + model artifacts
-        |
-        v
-local CSV/data storage and optional Supabase sync
-```
+India's cold chain for healthcare — vaccines, insulin, blood bags, organ transport — is critically under-monitored. A single temperature breach can destroy an entire shipment worth lakhs of rupees and, more importantly, put patient lives at risk. Existing solutions offer basic GPS tracking but no predictive intelligence.
 
-## Project Tree
+**FrostGuard AI solves this.**
 
-```text
-frostgaurd_final_v2/
-|-- main_dashboard.py
-|-- Bridge.py
-|-- api.py
-|-- frost_ml.py
-|-- knn_adapter.py
-|-- config.py
-|-- requirements.txt
-|-- README.md
-|-- frostguard_knn.joblib
-|-- frostguard_ml.joblib
-|-- frostguard_ml.pkl
-|-- config/
-|   `-- frostguard_config.json
-|-- data/
-|   `-- healthcare_iot_target_dataset.csv
-|-- logs/
-|   |-- bridge_stdout.log
-|   `-- bridge_stderr.log
-`-- __pycache__/
-```
+---
 
-## Local Setup
+## What It Does
 
-Create and activate a virtual environment:
+FrostGuard AI is a live Streamlit dashboard that monitors a fleet of 13 medical cargo trucks in real time. It doesn't just show you what's happening — it tells you what's *about to* happen and automatically reroutes trucks to the nearest safe cold storage before a breach occurs.
+
+| Capability | How |
+|---|---|
+| Live temperature monitoring | IoT telemetry ingested via REST API every 6 seconds |
+| Breach prediction | HistGradientBoosting model forecasts next 30s temperature trajectory |
+| Anomaly detection | Isolation Forest flags irregular thermal behavior |
+| Smart rerouting | KNN model routes truck to nearest of 16 cold storage nodes |
+| Voice alerts | Browser-native alert, fires once per breach episode |
+| Fleet overview | 13 trucks across Gujarat + national long-haul routes |
+
+---
+
+## Demo
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-Install dependencies:
-
-```bash
+git clone <repo-url>
+cd frostgaurd_final_v2
+python -m venv .venv && .venv\Scripts\activate   # Windows
 pip install -r requirements.txt
-```
-
-Run the dashboard:
-
-```bash
 streamlit run main_dashboard.py
 ```
 
-Open the URL printed by Streamlit, usually:
+Open `http://localhost:8501` — the bridge starts automatically, no extra steps.
 
-```text
-http://localhost:8501
+**Demo flow:**
+1. Use the truck selector to browse all 13 active trucks
+2. Scroll below the map to view live fleet detail cards
+3. Hit **Inject Failure** on any truck to simulate a breach event
+4. Watch the KNN reroute kick in and the voice alert fire
+5. Check the Event Log panel for a timestamped breach history
+
+---
+
+## System Architecture
+
 ```
-
-## Deployment Notes
-
-For deployment, keep these files in the deployed project:
-
-- `main_dashboard.py`
-- `Bridge.py`
-- `frost_ml.py`
-- `knn_adapter.py`
-- `requirements.txt`
-- `config/frostguard_config.json`
-- `data/healthcare_iot_target_dataset.csv`
-- `frostguard_knn.joblib`
-- `frostguard_ml.joblib` or `frostguard_ml.pkl`
-
-The local OneDrive paths are only fallback paths. The project now also includes the config and healthcare dataset locally, so deployment should not depend on your computer path.
-
-Recommended start command:
-
-```bash
 streamlit run main_dashboard.py
+        │
+        ├── Auto-starts Bridge (Flask) if offline
+        ├── Polls /fleet and /latest every 6s via Streamlit fragments
+        └── Renders: map · metrics · alerts · fleet cards · event log
+                │
+                ▼
+        Bridge.py + api.py  (Flask + FastAPI dual-layer)
+                │
+                ├── POST /telemetry   — ingest truck sensor data
+                ├── GET  /fleet       — return simulated fleet state
+                ├── GET  /latest      — last known telemetry record
+                ├── GET  /ml_insight  — anomaly + forecast output
+                └── POST /command     — send reroute / cooling commands
+                        │
+                        ▼
+        frost_ml.py  ·  knn_adapter.py  ·  model artifacts
+                        │
+                        ▼
+        Local CSV log  +  Optional Supabase cloud sync
 ```
 
-The dashboard will start the bridge automatically. If the bridge is unavailable, the dashboard should keep rendering with fallback data instead of crashing.
+---
 
-## Optional Cloud Environment Variables
+## ML Pipeline
 
-Supabase is optional. The app works locally without it.
+The ML engine (`frost_ml.py`) runs two models in tandem on a **32-feature telemetry vector**.
 
-```text
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+**Features include:** live temperature, rolling stats (mean, std, lags 1–6), humidity, door open count, acceleration RMS, handling stress, health index, ambient weather, speed, and GPS-derived distance step.
+
+### Models
+
+**1. Isolation Forest — Anomaly Detector**
+- Detects abnormal thermal patterns (e.g. sudden spike, sensor drift, door left open)
+- Trained on the healthcare IoT dataset (up to 80,000 rows)
+- Outputs: `anomaly: bool`, `anomaly_score: 0–100`
+
+**2. HistGradientBoostingRegressor — Temperature Forecaster**
+- Predicts next-step temperature in an autoregressive loop (10 steps × 3s = 30s horizon)
+- Falls back to Ridge regression if GBM training fails
+- Outputs: `predicted_temp_30s`, `forecast_series`, `time_to_critical_sec`
+
+**3. KNN — Facility Router (`frostguard_knn.joblib`)**
+- Maps truck GPS coordinates to nearest viable cold storage node
+- 16 storage nodes across Gujarat, Mumbai, Delhi, Chennai, Bangalore
+
+**Composite breach probability** fuses forecast headroom + anomaly score into a single 0–100 risk index per truck.
+
+### Model Performance
+Metrics are logged live at runtime and accessible via the `/health` endpoint:
+```
+r2_score · mae_celsius · mse · rmse_celsius
 ```
 
-Alternative key name:
+---
 
-```text
-SUPABASE_KEY=your_supabase_key
+## Fleet Coverage
+
+**Regional — Gujarat Corridor**
+```
+Vadodara  →  Ahmedabad · Anand · Sanand · Gandhinagar
+Nadiad    →  Gandhinagar · Ahmedabad
+Anand     →  Ahmedabad · Gandhinagar
 ```
 
-Optional dataset override:
-
-```text
-DATASET_PATH=data/healthcare_iot_target_dataset.csv
+**Long-Haul — National**
+```
+Mumbai    →  Delhi · Jaipur
+Chennai   →  Bangalore
+Ahmedabad →  Chennai
 ```
 
-Optional fleet log path:
+---
 
-```text
-FLEET_CSV=fleet_logs.csv
+## Cold Storage Network
+
+16 mapped facilities including:
+- GAIMFP PPC Cold Store, Vadodara
+- Sanand Pharma Cold Chain
+- Kheda Vaccine Vault
+- Ahmedabad MedCold Depot
+- Gujarat Cold Storage Association, Gandhinagar
+- Hubs in Mumbai, Nashik, Indore, Jaipur, Delhi, Vellore, Bangalore, Chennai
+
+---
+
+## Project Structure
+
 ```
+frostgaurd_final_v2/
+├── main_dashboard.py          # Streamlit entry point — run this
+├── Bridge.py                  # Flask bridge — auto-started by dashboard
+├── api.py                     # FastAPI async backend (v2)
+├── frost_ml.py                # Core ML engine
+├── knn_adapter.py             # KNN model compatibility shim
+├── config.py                  # Temperature thresholds + route config
+├── requirements.txt
+├── README.md
+├── frostguard_knn.joblib      # Trained KNN routing artifact
+├── frostguard_ml.joblib       # Trained ML pipeline artifact
+├── frostguard_ml.pkl          # Pickle fallback
+├── config/
+│   └── frostguard_config.json # 13-truck fleet definitions
+├── data/
+│   └── healthcare_iot_target_dataset.csv
+└── logs/
+    ├── bridge_stdout.log
+    └── bridge_stderr.log
+```
+
+---
+
+## Environment Variables
+
+All optional. The app runs fully offline without any of these.
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL for cloud telemetry sync |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `DATASET_PATH` | Override path to the healthcare IoT CSV |
+| `FLEET_CSV` | Override path for fleet log output |
+
+---
 
 ## Verification
 
-Compile check:
-
 ```bash
+# Compile check — all modules
 python -m py_compile main_dashboard.py Bridge.py frost_ml.py knn_adapter.py config.py
-```
 
-Bridge smoke test:
-
-```bash
+# Bridge smoke test — expected output: 13 TRK-RD-001
 python -c "import Bridge; fleet=Bridge._simulate_fleet(); print(len(fleet), fleet[0]['truck_id'])"
 ```
 
-Expected result:
+---
 
-```text
-13 TRK-RD-001
-```
-
-## Submission Demo Flow
-
-1. Run `streamlit run main_dashboard.py`.
-2. Confirm the bridge connects automatically.
-3. Use the truck selector to switch between trucks.
-4. Scroll below the map to show the blue fleet detail cards.
-5. Press `Inject Failure` to demonstrate warning or critical behavior.
-6. Show KNN reroute text in the truck card.
-7. Confirm voice alert speaks once, not every dashboard update.
+*FrostGuard AI · IIIT Vadodara · 2025*  
+*Built for real-world cold chain intelligence across India's healthcare logistics network.*
