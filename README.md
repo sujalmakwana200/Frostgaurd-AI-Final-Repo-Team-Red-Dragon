@@ -193,6 +193,25 @@ frostgaurd_final_v2/
 
 ---
 
+## Limitations & Future Improvements
+
+While FrostGuard AI demonstrates a robust cold-chain monitoring system, there are areas for further enhancement:
+
+**Current Limitations:**
+- Relies on simulated telemetry instead of real IoT hardware integration
+- Network latency and packet loss handling can be improved for rural deployments
+- ML models are trained on limited datasets and may require further real-world validation
+- Static cold storage nodes — dynamic availability is not yet considered
+
+**Future Improvements:**
+- Integration with real IoT sensors for live deployment
+- Advanced deep learning models for improved prediction accuracy
+- Dynamic cold storage discovery based on real-time availability
+- Mobile app for drivers with real-time alerts and instructions
+- Offline-first capabilities for low-connectivity regions
+
+---
+
 ## Environment Variables
 
 All optional. The app runs fully offline without any of these.
