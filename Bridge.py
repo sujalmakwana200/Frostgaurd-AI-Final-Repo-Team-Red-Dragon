@@ -68,10 +68,8 @@ COLD_STORAGES = [
     {"name": "Bangalore Hub", "city": "Bangalore", "lat": 12.9716, "lon": 77.5946},
 ]
 
-FLEET_CONFIG_CANDIDATES = [
-    os.path.join(BASE_DIR, "config", "frostguard_config.json"),
-    r"C:\Users\lenovo\OneDrive\Desktop\python\python for computer graphics\LAB11\FrostGuard_Final_Project\config\frostguard_config.json",
-]
+
+FLEET_CONFIG_PATH = os.path.join(BASE_DIR, "config", "frostguard_config.json")
 
 DEFAULT_FLEET_CONFIG = [
     {"truck_id": "TRK-RD-001", "cargo": "Vaccines", "route": "Vadodara -> Ahmedabad", "profile": "critical-demo", "start_offset": 0},
