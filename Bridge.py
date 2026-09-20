@@ -187,18 +187,25 @@ _SUPABASE = None
 _SUPABASE_READY = False
 
 
+_ML_LOCK = threading.Lock()
+
+
 def _load_ml():
     global _ML, _ML_READY
     if _ML is not None:
         return _ML if _ML else None
-    try:
-        _ML = FrostGuardML(csv_path=CSV_FILE, dataset_path=DATASET_PATH, training_sample_rows=5000)
-        _ML_READY = bool(getattr(_ML, "is_trained", False))
-        return _ML
-    except Exception:
-        _ML = False
-        _ML_READY = False
-        return None
+    with _ML_LOCK:                      # only one thread trains; others wait
+        if _ML is not None:
+            return _ML if _ML else None
+        try:
+            _ML = FrostGuardML(csv_path=CSV_FILE, dataset_path=DATASET_PATH, training_sample_rows=5000)
+            _ML_READY = bool(getattr(_ML, "is_trained", False))
+            return _ML
+        except Exception as exc:        # do not fail silently
+            print(f"[Bridge] ML failed to load, using rule-based fallback: {exc!r}", flush=True)
+            _ML = False
+            _ML_READY = False
+            return None
 
 
 def _load_supabase():
