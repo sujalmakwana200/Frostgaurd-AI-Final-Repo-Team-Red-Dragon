@@ -1394,7 +1394,10 @@ def render_details():
         tc_html = f"<b style='color:{rc}'>{time_crit}s</b>" if time_crit else "<span style='color:#2A2A2A'>—</span>"
         anom_html = "<b style='color:#FF3B3B'>YES</b>" if is_anomaly else "<b style='color:#4CAF50'>NO</b>"
         pred_rc = risk_color("CRITICAL" if pred_temp > CRITICAL_AT else ("HIGH" if pred_temp > SAFE_MAX else "LOW"))
-
+       
+        _model_name = ml.get("model")
+        ml_title = ("Rule-based fallback (trained model not connected)"
+                    if _model_name in (None, "fallback") else _model_name)
         st.markdown(
             f'<div class="fg-card">'
             f'<div class="fg-card-title">🧠 Isolation Forest + Linear Forecast</div>'
