@@ -1400,7 +1400,7 @@ def render_details():
                     if _model_name in (None, "fallback") else _model_name)
         st.markdown(
             f'<div class="fg-card">'
-            f'<div class="fg-card-title">🧠 Isolation Forest + Linear Forecast</div>'
+            f'<div class="fg-card-title">🧠 {ml_title}</div>'
             f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
             f'  <span class="risk-badge risk-{risk}">{risk}</span>'
             f'  <span style="font-size:0.6rem;color:#3A3A3A;font-family:\'Space Mono\',monospace;">{train_rows} training rows</span>'
