@@ -28,7 +28,7 @@ app = Flask(__name__)
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_FILE = os.environ.get("FLEET_CSV", os.path.join(BASE_DIR, "fleet_logs.csv"))
+CSV_FILE = FLEET_CONFIG_CANDIDATES = [os.path.join(BASE_DIR, "config", "frostguard_config.json")]
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY", "")
