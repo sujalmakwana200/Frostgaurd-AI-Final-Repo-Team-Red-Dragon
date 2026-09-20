@@ -710,4 +710,5 @@ def reset():
 
 
 if __name__ == "__main__":
+    _load_ml()          # warm up so the first dashboard poll is not slow
     app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False, threaded=True)
