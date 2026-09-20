@@ -577,7 +577,7 @@ def _simulate_fleet() -> list[dict[str, Any]]:
         payload.update({key: value for key, value in sample.items() if value not in ("", None)})
         data = _enrich(
             payload,
-            run_ml=False,
+            run_ml=True,,
         )
         fleet.append(data)
 
