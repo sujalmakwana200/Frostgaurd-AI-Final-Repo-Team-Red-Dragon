@@ -9,7 +9,7 @@
 
 ## Tech Stack
 
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=for-the-badge&logo=flask&logoColor=white)
@@ -60,14 +60,14 @@ FrostGuard AI is a live Streamlit dashboard that monitors a fleet of 13 medical 
 ## Demo
 
 ```bash
-git clone <repo-url>
-cd frostgaurd_final_v2
+git clone https://github.com/sujalmakwana200/Frostgaurd-AI-Final-Repo-Team-Red-Dragon.git
+cd Frostgaurd-AI-Final-Repo-Team-Red-Dragon
 python -m venv .venv && .venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 streamlit run main_dashboard.py
 ```
 
-Open `http://localhost:8501` — the bridge starts automatically, no extra steps.
+Open `http://localhost:8501` — the dashboard auto-starts the FastAPI backend (`api.py`, via `uvicorn`) on port 5000 if it isn't already running, no extra steps.
 
 **Demo flow:**
 1. Use the truck selector to browse all 13 active trucks
@@ -83,18 +83,18 @@ Open `http://localhost:8501` — the bridge starts automatically, no extra steps
 ```
 streamlit run main_dashboard.py
         │
-        ├── Auto-starts Bridge (Flask) if offline
+        ├── Auto-starts api.py (FastAPI, via uvicorn) on :5000 if offline
         ├── Polls /fleet and /latest every 6s via Streamlit fragments
         └── Renders: map · metrics · alerts · fleet cards · event log
                 │
                 ▼
-        Bridge.py + api.py  (Flask + FastAPI dual-layer)
+        api.py  (FastAPI backend — auto-started by the dashboard)
                 │
                 ├── POST /telemetry   — ingest truck sensor data
                 ├── GET  /fleet       — return simulated fleet state
                 ├── GET  /latest      — last known telemetry record
-                ├── GET  /ml_insight  — anomaly + forecast output
-                └── POST /command     — send reroute / cooling commands
+                ├── GET  /health      — liveness check
+                └── POST /reset       — reset fleet/telemetry state
                         │
                         ▼
         frost_ml.py  ·  knn_adapter.py  ·  model artifacts
@@ -103,13 +103,16 @@ streamlit run main_dashboard.py
         Local CSV log  +  Optional Supabase cloud sync
 ```
 
+> **Bridge.py** is a standalone Flask backend that additionally exposes `/truck/<id>`, `/ml_insight`, `/predictions`, `/summary`, `/command`, and `/register_sim`. It is **not** launched by `main_dashboard.py` — it must be run manually (`python Bridge.py`) if you want those endpoints. The dashboard's "Inject Failure" button currently posts to `/command` on the auto-started `api.py` service, which does not define that route — run `Bridge.py` alongside the dashboard (or point `API_BASE` at it) if you need failure injection to work end-to-end. *(Flagging this as a known gap — worth confirming on the live demo.)*
+
 ---
 
 ## ML Pipeline
 
-The ML engine (`frost_ml.py`) runs two models in tandem on a **32-feature telemetry vector**.
+The ML engine (`frost_ml.py`) runs two models in tandem, each on its own feature set:
 
-**Features include:** live temperature, rolling stats (mean, std, lags 1–6), humidity, door open count, acceleration RMS, handling stress, health index, ambient weather, speed, and GPS-derived distance step.
+- **Forecaster features (12):** `temperature`, `temp_delta`, `temp_delta_2`, `temp_delta_3`, `temp_delta_6`, `temp_rolling_mean_6`, `temp_rolling_std_6`, `temp_range_6`, `door_open`, `ambient_temp_c`, `headroom_c`, `minutes_above_safe`
+- **Detector features (8):** `temperature`, `temp_delta`, `temp_delta_2`, `temp_delta_3`, `temp_rolling_std_6`, `temp_range_6`, `door_open`, `ambient_temp_c`
 
 ### Models
 
@@ -123,9 +126,9 @@ The ML engine (`frost_ml.py`) runs two models in tandem on a **32-feature teleme
 - Falls back to Ridge regression if GBM training fails
 - Outputs: `predicted_temp_30s`, `forecast_series`, `time_to_critical_sec`
 
-**3. KNN — Facility Router (`frostguard_knn.joblib`)**
+**3. KNN — Facility Router (`knn_adapter.pkl`)**
 - Maps truck GPS coordinates to nearest viable cold storage node
-- 16 storage nodes across Gujarat, Mumbai, Delhi, Chennai, Bangalore
+- 16 storage nodes across Gujarat, Mumbai, Nashik, Indore, Jaipur, Delhi, Vellore, Bangalore, Chennai
 
 **Composite breach probability** fuses forecast headroom + anomaly score into a single 0–100 risk index per truck.
 
@@ -170,25 +173,27 @@ Ahmedabad →  Chennai
 ## Project Structure
 
 ```
-frostgaurd_final_v2/
-├── main_dashboard.py          # Streamlit entry point — run this
-├── Bridge.py                  # Flask bridge — auto-started by dashboard
-├── api.py                     # FastAPI async backend (v2)
+Frostgaurd-AI-Final-Repo-Team-Red-Dragon/
+├── main_dashboard.py          # Streamlit entry point — run this; auto-starts api.py
+├── Bridge.py                  # Standalone Flask backend — NOT auto-started, run manually
+├── api.py                     # FastAPI backend — auto-started by the dashboard on :5000
 ├── frost_ml.py                # Core ML engine
 ├── knn_adapter.py             # KNN model compatibility shim
+├── train_model.py             # Trains the forecaster/detector models
+├── train_knn.py                # Trains the KNN facility-router artifact
+├── trip_replay.py             # Replays a recorded trip for demos
 ├── config.py                  # Temperature thresholds + route config
+├── index.html                 # Static landing/meta page
+├── Dockerfile                 # Container build (python:3.12-slim, exposes 8501)
 ├── requirements.txt
 ├── README.md
-├── frostguard_knn.joblib      # Trained KNN routing artifact
-├── frostguard_ml.joblib       # Trained ML pipeline artifact
-├── frostguard_ml.pkl          # Pickle fallback
-├── config/
-│   └── frostguard_config.json # 13-truck fleet definitions
-├── data/
-│   └── healthcare_iot_target_dataset.csv
-└── logs/
-    ├── bridge_stdout.log
-    └── bridge_stderr.log
+└── (generated at runtime, not committed)
+    ├── frostguard_knn.joblib / knn_adapter.pkl   # per config.py's knn_artifact key
+    ├── frostguard_ml.joblib, frostguard_ml.pkl   # trained model artifacts
+    ├── config/frostguard_config.json             # optional fleet override
+    ├── data/healthcare_iot_target_dataset.csv
+    ├── fleet_logs.csv
+    └── logs/*.log
 ```
 
 ---
