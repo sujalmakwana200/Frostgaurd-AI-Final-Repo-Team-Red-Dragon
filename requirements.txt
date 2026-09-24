@@ -17,7 +17,7 @@ requests>=2.32.0
 # Data & ML
 pandas>=2.2.0
 numpy>=1.26.0
-scikit-learn>=1.5.0
+scikit-learn==1.8.0
 joblib>=1.4.0
 
 # Schema Validation
