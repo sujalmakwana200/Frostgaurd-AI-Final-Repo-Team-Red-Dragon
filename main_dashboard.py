@@ -15,10 +15,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pydeck as pdk
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+from sklearn.neighbors import NearestNeighbors
+
+from frost_ml import FrostGuardML
 
 # ──────────────────────────────────────────────────────────────
 #  PAGE CONFIG — must be first Streamlit call
@@ -79,6 +83,30 @@ COLD_STORAGES = [
     {"name": "Vellore Storage", "city": "Vellore", "lat": 12.9165, "lon": 79.1325},
     {"name": "Bangalore Hub", "city": "Bangalore", "lat": 12.9716, "lon": 77.5946},
 ]
+
+
+@st.cache_resource(show_spinner=False)
+def get_ml_engine() -> FrostGuardML:
+    """Trained in-process — no API/subprocess hop needed."""
+    return FrostGuardML()
+
+
+@st.cache_resource(show_spinner=False)
+def get_knn_router() -> NearestNeighbors:
+    """Real trained KNN model over the 16 cold-storage nodes (replaces the old hardcoded stub)."""
+    coords = np.array([[s["lat"], s["lon"]] for s in COLD_STORAGES])
+    model = NearestNeighbors(n_neighbors=1)
+    model.fit(coords)
+    return model
+
+
+def knn_nearest_cold_storage(lat: float, lon: float) -> tuple[dict, float]:
+    model = get_knn_router()
+    dist, idx = model.kneighbors([[lat, lon]], n_neighbors=1)
+    target = COLD_STORAGES[int(idx[0][0])]
+    distance_km = float(dist[0][0]) * 111.0  # ~km per degree, good enough at this scale
+    return target, round(haversine(lat, lon, target["lat"], target["lon"]), 2)
+
 
 FLEET_CONFIG_CANDIDATES = [
     BASE_DIR / "config" / "frostguard_config.json",
@@ -643,12 +671,13 @@ def launch_services():
 
 
 def ensure_services():
-    if api_online():
-        st.session_state.services_launched = True
-        return
-    if time.time() - float(st.session_state.get("last_bridge_launch", 0.0)) > 4.0:
-        launch_services()
-        st.session_state.services_launched = True
+    # The dashboard now runs its ML models in-process (see get_ml_engine() /
+    # get_knn_router()), so it no longer depends on spawning api.py/Bridge.py
+    # as a background subprocess. That pattern was unreliable on hosted
+    # platforms like Streamlit Community Cloud, and nothing was posting
+    # telemetry to it anyway. Left in place, unused, for anyone who wants to
+    # run api.py/Bridge.py standalone for the distributed-services version.
+    st.session_state.services_launched = True
 
 
 def ensure_routes():
@@ -708,11 +737,11 @@ def local_reroute(telemetry):
         return None
     lat = float(telemetry.get("lat", START_LAT))
     lon = float(telemetry.get("lng", START_LON))
-    target = nearest_cold_storage(lat, lon)
+    target, distance_km = knn_nearest_cold_storage(lat, lon)
     return {
         "target": target,
-        "distance_km": round(haversine(lat, lon, target["lat"], target["lon"]), 2),
-        "method": "KNN fallback",
+        "distance_km": distance_km,
+        "method": "KNN (trained, in-process)",
     }
 
 
@@ -742,7 +771,10 @@ def demo_fleet():
 
         status = risk_from_temp(temp)
         speed = 66 + item["speed_offset"] + math.cos(elapsed / 14.0 + idx) * 6
-        ml = default_ml(temp)
+        try:
+            ml = get_ml_engine().analyze({"truck_id": item["truck_id"], "temperature": temp})
+        except Exception:
+            ml = default_ml(temp)  # only used if the real model genuinely errors
         telemetry = {
             "truck_id": item["truck_id"],
             "truck_name": item["truck_name"],
@@ -1210,19 +1242,16 @@ def render_header():
         b1, b2 = st.columns(2)
         with b1:
             if st.button("🚨 Inject Failure", key="btn_fail"):
+                # Handled entirely in-process by demo_fleet()'s `failure` window —
+                # no API call needed, so this can't silently 404 anymore.
                 st.session_state.failure_until = time.time() + 45
-                try:
-                    requests.post(f"{API_BASE}/command", json={"command": "compressor_fail"}, timeout=2)
-                    st.toast("Failure injected!", icon="🚨")
-                except Exception:
-                    st.toast("API not reachable", icon="⚠️")
+                st.toast("Failure injected!", icon="🚨")
                 st.session_state.last_snapshot_at = 0.0
         with b2:
             if st.button("🔄 Reset", key="btn_reset"):
-                try:
-                    requests.post(f"{API_BASE}/reset", timeout=2)
-                except Exception:
-                    pass
+                st.session_state.failure_until = 0.0
+                st.session_state.demo_started_at = time.time()
+                st.session_state.last_snapshot_at = 0.0
                 reset_dashboard_state()
                 st.rerun()
 
