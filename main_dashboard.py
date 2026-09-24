@@ -87,8 +87,21 @@ COLD_STORAGES = [
 
 @st.cache_resource(show_spinner=False)
 def get_ml_engine() -> FrostGuardML:
-    """Trained in-process — no API/subprocess hop needed."""
-    return FrostGuardML()
+    """Load the pre-trained model artifact instead of training at boot.
+    Training on every cold start was the actual cause of slow/failed boots
+    on resource-limited hosts (Render free tier, Streamlit Cloud). The real
+    fix is: train once, offline, commit frostguard_ml.joblib, and just load
+    it here (~0.06s, ~190MB, vs ~3s/270MB to train from scratch).
+    Falls back to a light in-process training run only if the artifact is
+    missing or was trained with a different scikit-learn version — this
+    keeps the app working even if the artifact isn't committed, just slower."""
+    artifact_path = str(BASE_DIR / "frostguard_ml.joblib")
+    if os.path.exists(artifact_path):
+        try:
+            return FrostGuardML.load_artifact(artifact_path)
+        except Exception:
+            pass
+    return FrostGuardML(n_traces=40, steps_per_trace=120)
 
 
 @st.cache_resource(show_spinner=False)
