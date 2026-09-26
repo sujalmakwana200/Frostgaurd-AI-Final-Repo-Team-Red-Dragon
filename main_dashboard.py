@@ -212,12 +212,12 @@ html, body,
     font-family: 'DM Sans', sans-serif !important;
 }
 
-/* 2. NUKE the Header and Running Bar completely */
-header, 
+/* 2. Slim down (not fully hide) the Header/Toolbar — keep stStatusWidget
+   visible so a genuine load/connect delay is never silent again. */
+header,
 [data-testid="stHeader"],
-[data-testid="stStatusWidget"], 
-[data-testid="stToolbar"] { 
-    display: none !important; 
+[data-testid="stToolbar"] {
+    display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
 }
@@ -508,11 +508,36 @@ def nearest_cold_storage(lat, lon):
     return min(COLD_STORAGES, key=lambda s: haversine(lat, lon, s["lat"], s["lon"]))
 
 
+ROUTE_CACHE_FILE = BASE_DIR / "routes_cache.json"
+
+
+@st.cache_resource(show_spinner=False)
+def _load_route_cache() -> dict:
+    if ROUTE_CACHE_FILE.exists():
+        try:
+            with open(ROUTE_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_route(slon, slat, elon, elat):
+    key = f"{slon:.4f},{slat:.4f},{elon:.4f},{elat:.4f}"
+    cached = _load_route_cache().get(key)
+    if cached:
+        return [(p[0], p[1]) for p in cached]
     try:
+        # Short timeout: this is a live external call to the public OSRM
+        # server, which rate-limits anonymous traffic. On a cold container
+        # (e.g. Render free tier waking from sleep) this ran up to 14 times
+        # sequentially with a 4s timeout each — up to ~56s of the whole app
+        # blocking before anything rendered. Prefer committing
+        # routes_cache.json (see precompute_routes.py) so this path is
+        # rarely hit in production at all.
         url = f"https://router.project-osrm.org/route/v1/driving/{slon},{slat};{elon},{elat}?overview=full&geometries=geojson"
-        d = requests.get(url, timeout=4).json()
+        d = requests.get(url, timeout=1.5).json()
         return [(c[1], c[0]) for c in d["routes"][0]["geometry"]["coordinates"]]
     except Exception:
         steps = 180
@@ -1608,8 +1633,9 @@ def render_fleet_board():
 
 
 def render_live_dashboard():
-    ensure_services()
-    ensure_routes()
+    with st.spinner("Warming up fleet services and route data…"):
+        ensure_services()
+        ensure_routes()
 
     render_header()
     render_truck_selector()
