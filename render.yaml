@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: frostguard-dashboard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /_stcore/health
+    autoDeploy: true
+    envVars:
+      # Streamlit reads $PORT via the Dockerfile CMD; Render sets it automatically.
+      # Add your optional secrets here (or in the Render dashboard):
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
