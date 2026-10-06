@@ -17,6 +17,8 @@ from typing import Any
 import joblib
 import requests as http_requests
 from flask import Flask, jsonify, request
+
+from config import COLD_STORAGES
 try:
     from supabase import create_client
 except Exception:
@@ -50,24 +52,6 @@ CITY_COORDS = {
     "Jaipur": (26.9124, 75.7873),
 }
 
-COLD_STORAGES = [
-    {"name": "GAIMFP PPC Cold Store", "city": "Vadodara", "lat": 22.3100, "lon": 73.1650},
-    {"name": "Amar Cold Storage", "city": "Anand", "lat": 22.5907, "lon": 72.9316},
-    {"name": "Nadiad BioCold Hub", "city": "Nadiad", "lat": 22.6939, "lon": 72.8616},
-    {"name": "Kheda Vaccine Vault", "city": "Kheda", "lat": 22.7500, "lon": 72.6800},
-    {"name": "Sanand Pharma Cold Chain", "city": "Sanand", "lat": 22.9922, "lon": 72.3818},
-    {"name": "Ahmedabad MedCold Depot", "city": "Ahmedabad", "lat": 23.0258, "lon": 72.5873},
-    {"name": "Gujarat Cold Storage Association", "city": "Ahmedabad", "lat": 23.0613, "lon": 72.5857},
-    {"name": "Vrundavan Cold Storage", "city": "Gandhinagar", "lat": 23.1500, "lon": 72.6800},
-    {"name": "Mumbai Hub", "city": "Mumbai", "lat": 19.0760, "lon": 72.8777},
-    {"name": "Nashik Storage", "city": "Nashik", "lat": 19.9975, "lon": 73.7898},
-    {"name": "Indore Cold", "city": "Indore", "lat": 22.7196, "lon": 75.8577},
-    {"name": "Jaipur Storage", "city": "Jaipur", "lat": 26.9124, "lon": 75.7873},
-    {"name": "Delhi Hub", "city": "Delhi", "lat": 28.6139, "lon": 77.2090},
-    {"name": "Chennai Hub", "city": "Chennai", "lat": 13.0827, "lon": 80.2707},
-    {"name": "Vellore Storage", "city": "Vellore", "lat": 12.9165, "lon": 79.1325},
-    {"name": "Bangalore Hub", "city": "Bangalore", "lat": 12.9716, "lon": 77.5946},
-]
 
 
 FLEET_CONFIG_PATH = os.path.join(BASE_DIR, "config", "frostguard_config.json")
@@ -173,8 +157,6 @@ _DATASET_CANDIDATES = [
     os.environ.get("DATASET_PATH", ""),
     os.path.join(BASE_DIR, "data", "healthcare_iot_target_dataset.csv"),
     os.path.join(BASE_DIR, "healthcare_iot_target_dataset.csv"),
-    r"C:\Users\lenovo\OneDrive\Desktop\python\python for computer graphics\LAB11\FrostGuard_Final_Project\data\healthcare_iot_target_dataset.csv",
-    r"C:\Users\lenovo\OneDrive\Desktop\FrostGaurd engine\healthcare_iot_target_dataset.csv",
 ]
 DATASET_PATH = next((p for p in _DATASET_CANDIDATES if p and os.path.exists(p)), None)
 _DATASET_ROWS: list[dict[str, Any]] | None = None
@@ -242,7 +224,11 @@ def _load_knn():
         return _KNN
     artifact = os.path.join(BASE_DIR, "frostguard_knn.joblib")
     try:
-        _KNN = joblib.load(artifact) if os.path.exists(artifact) else False
+        if os.path.exists(artifact):
+            from knn_adapter import FrostGuardKNNAdapter
+            _KNN = FrostGuardKNNAdapter.load(artifact)
+        else:
+            _KNN = False
         _KNN_READY = bool(_KNN)
     except Exception:
         _KNN = False
