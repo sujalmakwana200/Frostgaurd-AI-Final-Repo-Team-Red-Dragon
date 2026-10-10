@@ -1,26 +1,62 @@
 <!DOCTYPE html>
 <!--
-  This file isn't served by the Streamlit app (main_dashboard.py is the
-  actual entry point) and isn't wired into the Dockerfile or any build
-  step. It's kept only as a static SEO/share-preview landing page — e.g.
-  if you ever host it separately (GitHub Pages, a custom domain) pointing
-  at the live dashboard. Update LIVE_URL below to your actual deployment.
+  Static landing page for search engines and link previews.
+
+  Why this exists: the Streamlit dashboard is rendered client-side over a
+  WebSocket, and Streamlit gives apps no way to set <meta name="description">
+  or Open Graph tags. Google therefore sees an almost empty page for the app
+  itself. This page carries the real title, description and content instead.
+
+  It is NOT served by the Streamlit app or the Dockerfile. Host it separately
+  (GitHub Pages, Netlify, your own domain), add a <link rel="canonical"> with
+  that final URL, then submit it in Google Search Console.
+
+  It deliberately does not auto-redirect: an instant redirect would make
+  Google index the Streamlit app instead of this page.
 -->
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>FrostGuard AI — Real-Time IoT Cold-Chain Tracker</title>
-    <meta name="description" content="Professional-grade IoT cold-chain temperature monitoring and AI anomaly detection dashboard for logistics fleets.">
-    <meta http-equiv="refresh" content="0; url=https://frostgaurd-ai-final-repo-team-red-dragon.onrender.com">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FrostGuard AI — Predictive Cold-Chain Monitoring &amp; Rerouting</title>
+    <meta name="description" content="FrostGuard AI predicts temperature breaches in medical cold-chain transport 30 seconds ahead and recommends the nearest cold-storage facility. Built by Team Red Dragon, IIIT Vadodara.">
 
-    <!-- Open Graph / Social Media Tags -->
-    <meta property="og:title" content="FrostGuard AI — Cold Fleet">
-    <meta property="og:description" content="Real-time IoT temperature and humidity monitoring for cold-chain transport.">
+    <!-- Open Graph / social previews -->
+    <meta property="og:title" content="FrostGuard AI — Predictive Cold-Chain Monitoring">
+    <meta property="og:description" content="Forecasts cold-chain temperature breaches before they happen and reroutes at-risk cargo to the nearest cold storage.">
     <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#000; color:#e2e2e2; margin:0; line-height:1.6; }
+        main { max-width: 720px; margin: 0 auto; padding: 56px 20px; }
+        h1 { font-size: 2rem; margin: 0 0 8px; }
+        h2 { font-size: 1.1rem; margin-top: 32px; color:#9fd3ff; }
+        .tag { color:#8a8a8a; margin-bottom: 28px; }
+        a.cta { display:inline-block; margin-top: 24px; padding: 12px 22px; background:#ff4b4b; color:#fff; text-decoration:none; border-radius:8px; font-weight:600; }
+        li { margin: 4px 0; }
+    </style>
 </head>
 <body>
-    <p>Redirecting to the live FrostGuard AI dashboard —
-        <a href="https://frostgaurd-ai-final-repo-team-red-dragon.onrender.com">click here if you are not redirected automatically</a>.
-    </p>
+<main>
+    <h1>FrostGuard AI</h1>
+    <p class="tag">Predictive cold-chain monitoring &amp; rerouting for medical cargo</p>
+
+    <p>Vaccines, insulin, blood bags and organ-transport kits are ruined by a single unnoticed temperature excursion. Most fleet tools only alert after the limit is crossed. FrostGuard AI forecasts the breach first.</p>
+
+    <h2>What it does</h2>
+    <ul>
+        <li>Forecasts each truck's cargo temperature 30 seconds ahead (HistGradientBoosting).</li>
+        <li>Flags abnormal thermal behaviour (Isolation Forest).</li>
+        <li>Recommends the nearest of 16 cold-storage facilities when a shipment is at risk (K-Nearest Neighbors).</li>
+        <li>Live map, fleet cards, voice alerts and a failure-injection demo mode.</li>
+    </ul>
+
+    <h2>Status</h2>
+    <p>Working prototype built by Team Red Dragon at IIIT Vadodara. It runs on a simulated 13-truck fleet; models are trained on a synthetic thermal simulator and are not yet validated on real sensor data.</p>
+
+    <a class="cta" href="https://frostgaurd-ai-final-repo-team-red-dragon.onrender.com">Launch the live dashboard</a>
+    <p><a href="https://github.com/sujalmakwana200/Frostgaurd-AI-Final-Repo-Team-Red-Dragon" style="color:#9fd3ff">View the source on GitHub</a></p>
+</main>
 </body>
 </html>
