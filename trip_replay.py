@@ -19,16 +19,16 @@ def clean_float(value: Any, default: float = 0.0) -> float:
     return float(default) if pd.isna(numeric) else float(numeric)
 
 def load_trip() -> pd.DataFrame:
-    if not DATA_FILE.exists():
-        # Fallback to current dir if not in /data/
+    data_file = DATA_FILE
+    if not data_file.exists():
+        # Fallback to the project root if the dataset isn't in /data/
         alt_path = Path(__file__).resolve().parent / "healthcare_iot_target_dataset.csv"
         if alt_path.exists():
-            global DATA_FILE
-            DATA_FILE = alt_path
+            data_file = alt_path
         else:
             raise FileNotFoundError(f"Dataset not found: {DATA_FILE}")
 
-    frame = pd.read_csv(DATA_FILE)
+    frame = pd.read_csv(data_file)
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], errors="coerce")
     frame = frame.dropna(subset=["timestamp"])
     trip = frame.loc[frame["bag_id"].astype(str) == TRIP_BAG_ID].copy()
