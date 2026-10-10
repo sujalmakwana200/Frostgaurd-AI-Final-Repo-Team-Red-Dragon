@@ -3,17 +3,17 @@
 
 > A production-grade fleet monitoring system for cold-chain medical cargo, built for Gujarat's pharmaceutical and blood-bank logistics corridors.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-FrostGuard_AI-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://frostgaurd-ai-final-repo-team-red-dragon-hfjhbqjcrmwtpaagvyql4.streamlit.app/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-FrostGuard_AI-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://frostgaurd-ai-final-repo-team-red-dragon.onrender.com)
 
 ---
 
 ## Tech Stack
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-3.0-000000?style=for-the-badge&logo=flask&logoColor=white)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.37+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Optional-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-Optional-000000?style=for-the-badge&logo=flask&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.8-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
 ![Pandas](https://img.shields.io/badge/Pandas-2.2-150458?style=for-the-badge&logo=pandas&logoColor=white)
 ![NumPy](https://img.shields.io/badge/NumPy-1.26-013243?style=for-the-badge&logo=numpy&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Optional-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
@@ -44,16 +44,18 @@ India's cold chain for healthcare — vaccines, insulin, blood bags, organ trans
 
 ## What It Does
 
-FrostGuard AI is a live Streamlit dashboard that monitors a fleet of 13 medical cargo trucks in real time. It doesn't just show you what's happening — it tells you what's *about to* happen and automatically reroutes trucks to the nearest safe cold storage before a breach occurs.
+FrostGuard AI is a live Streamlit dashboard that monitors a fleet of 13 medical cargo trucks. It doesn't just show you what's happening — it forecasts what's *about to* happen and recommends the nearest safe cold storage before a breach occurs.
 
 | Capability | How |
 |---|---|
-| Live temperature monitoring | IoT telemetry ingested via REST API every 6 seconds |
-| Breach prediction | HistGradientBoosting model forecasts next 30s temperature trajectory |
+| Live fleet monitoring | 13 simulated trucks on real OSRM road routes, refreshed every 3–6 s by Streamlit fragments |
+| Breach prediction | HistGradientBoosting forecaster predicts the temperature change out to a 30 s horizon |
 | Anomaly detection | Isolation Forest flags irregular thermal behavior |
-| Smart rerouting | KNN model routes truck to nearest of 16 cold storage nodes |
-| Voice alerts | Browser-native alert, fires once per breach episode |
-| Fleet overview | 13 trucks across Gujarat + national long-haul routes |
+| Smart rerouting | KNN (scikit-learn `NearestNeighbors`) picks the nearest of 16 cold-storage nodes when a truck is at risk |
+| Voice alerts | Browser Web Speech API, fires once per breach episode |
+| Failure injection | **Inject Failure** button simulates a compressor fault so you can watch the pipeline react |
+
+> **Data note:** the fleet is simulated and the models are trained on a synthetic thermal simulator (`frost_ml.simulate_trace`). They have not been validated on real sensor data.
 
 ---
 
@@ -67,7 +69,7 @@ pip install -r requirements.txt
 streamlit run main_dashboard.py
 ```
 
-Open `http://localhost:8501` — the dashboard auto-starts the FastAPI backend (`api.py`, via `uvicorn`) on port 5000 if it isn't already running, no extra steps.
+Open `http://localhost:8501`. The dashboard is self-contained: it loads the pre-trained model (`frostguard_ml.joblib`) and runs inference in-process. No separate backend needs to be started.
 
 **Demo flow:**
 1. Use the truck selector to browse all 13 active trucks
@@ -81,29 +83,25 @@ Open `http://localhost:8501` — the dashboard auto-starts the FastAPI backend (
 ## System Architecture
 
 ```
-streamlit run main_dashboard.py
+streamlit run main_dashboard.py      (single process)
         │
-        ├── Auto-starts api.py (FastAPI, via uvicorn) on :5000 if offline
-        ├── Polls /fleet and /latest every 6s via Streamlit fragments
-        └── Renders: map · metrics · alerts · fleet cards · event log
-                │
-                ▼
-        api.py  (FastAPI backend — auto-started by the dashboard)
-                │
-                ├── POST /telemetry   — ingest truck sensor data
-                ├── GET  /fleet       — return simulated fleet state
-                ├── GET  /latest      — last known telemetry record
-                ├── GET  /health      — liveness check
-                └── POST /reset       — reset fleet/telemetry state
-                        │
-                        ▼
-        frost_ml.py  ·  knn_adapter.py  ·  model artifacts
-                        │
-                        ▼
-        Local CSV log  +  Optional Supabase cloud sync
+        ├── get_ml_engine()   loads frostguard_ml.joblib  (no training at boot)
+        ├── get_knn_router()  fits NearestNeighbors on the 16 cold-storage nodes
+        ├── routes_cache.json precomputed OSRM road geometries
+        ├── demo_fleet()      simulates 13 trucks each refresh
+        │        └── FrostGuardML.analyze() → risk, forecast, anomaly, breach probability
+        └── Streamlit fragments render: map · metrics · alerts · fleet cards · event log
 ```
 
-> **Bridge.py** is a standalone Flask backend that additionally exposes `/truck/<id>`, `/ml_insight`, `/predictions`, `/summary`, `/command`, and `/register_sim`. It is **not** launched by `main_dashboard.py` — it must be run manually (`python Bridge.py`) if you want those endpoints. The dashboard's "Inject Failure" button currently posts to `/command` on the auto-started `api.py` service, which does not define that route — run `Bridge.py` alongside the dashboard (or point `API_BASE` at it) if you need failure injection to work end-to-end. *(Flagging this as a known gap — worth confirming on the live demo.)*
+### Optional standalone services (not required by the dashboard)
+
+`Bridge.py` (Flask) and `api.py` (FastAPI) are REST backends for telemetry ingestion. Run one manually on port 5000 if you want to feed real/replayed telemetry; the dashboard merges live data over its simulation when it finds one.
+
+| Service | Run with | Notes |
+|---|---|---|
+| `Bridge.py` | `python Bridge.py` | Fuller API (`/truck/<id>`, `/ml_insight`, `/predictions`, `/summary`, `/command`, `/register_sim`), Discord webhook on CRITICAL (opt-in via `DISCORD_WEBHOOK`), optional Supabase sync, KNN breach-risk classifier from `frostguard_knn.joblib`. Trains its own ML model at startup, so it is heavier. |
+| `api.py` | `python api.py` | Minimal API (`/telemetry`, `/fleet`, `/latest`, `/health`, `/reset`). Its reroute logic is a placeholder stub, not the trained KNN. |
+| `trip_replay.py` | `python trip_replay.py` | Replays a bag from `data/healthcare_iot_target_dataset.csv` (not committed) to `:5000/telemetry`. |
 
 ---
 
@@ -118,24 +116,25 @@ The ML engine (`frost_ml.py`) runs two models in tandem, each on its own feature
 
 **1. Isolation Forest — Anomaly Detector**
 - Detects abnormal thermal patterns (e.g. sudden spike, sensor drift, door left open)
-- Trained on the healthcare IoT dataset (up to 80,000 rows)
+- Trained on 48,000 rows from the built-in thermal simulator (200 traces × 300 steps, with injected faults)
 - Outputs: `anomaly: bool`, `anomaly_score: 0–100`
 
 **2. HistGradientBoostingRegressor — Temperature Forecaster**
-- Predicts next-step temperature in an autoregressive loop (10 steps × 3s = 30s horizon)
-- Falls back to Ridge regression if GBM training fails
+- Direct multi-horizon forecasting: separate models predict the temperature *change* at 20%, 50% and 100% of the 30 s window, then interpolate (avoids compounding error)
+- Targets are `truth[t+h] − measured[t]`, so the model can't score well by just echoing the current reading
 - Outputs: `predicted_temp_30s`, `forecast_series`, `time_to_critical_sec`
 
-**3. KNN — Facility Router (`knn_adapter.pkl`)**
-- Maps truck GPS coordinates to nearest viable cold storage node
+**3. KNN — Facility Router (in `main_dashboard.py`)**
+- `NearestNeighbors` over the lat/lon of the 16 cold-storage nodes, queried with the truck's GPS position
+- Separately, `Bridge.py` uses `frostguard_knn.joblib` (a `KNeighborsClassifier` over a 15-feature telemetry vector, from `knn_adapter.py`) to estimate breach risk, then scores facilities by risk + distance
 - 16 storage nodes across Gujarat, Mumbai, Nashik, Indore, Jaipur, Delhi, Vellore, Bangalore, Chennai
 
 **Composite breach probability** fuses forecast headroom + anomaly score into a single 0–100 risk index per truck.
 
 ### Model Performance
-Metrics are logged live at runtime and accessible via the `/health` endpoint:
+Metrics are computed on held-out simulated traces (split by trace) and compared against a "nothing changes" persistence baseline. They are printed at training time and stored in the model artifact:
 ```
-r2_score · mae_celsius · mse · rmse_celsius
+r2_score · mae_celsius · rmse_celsius · skill_vs_persistence
 ```
 
 ---
@@ -174,27 +173,39 @@ Ahmedabad →  Chennai
 
 ```
 Frostgaurd-AI-Final-Repo-Team-Red-Dragon/
-├── main_dashboard.py          # Streamlit entry point — run this; auto-starts api.py
-├── Bridge.py                  # Standalone Flask backend — NOT auto-started, run manually
-├── api.py                     # FastAPI backend — auto-started by the dashboard on :5000
-├── frost_ml.py                # Core ML engine
-├── knn_adapter.py             # KNN model compatibility shim
-├── train_model.py             # Trains the forecaster/detector models
-├── train_knn.py                # Trains the KNN facility-router artifact
-├── trip_replay.py             # Replays a recorded trip for demos
-├── config.py                  # Temperature thresholds + route config
-├── index.html                 # Static landing/meta page
-├── Dockerfile                 # Container build (python:3.12-slim, exposes 8501)
-├── requirements.txt
-├── README.md
-└── (generated at runtime, not committed)
-    ├── frostguard_knn.joblib / knn_adapter.pkl   # per config.py's knn_artifact key
-    ├── frostguard_ml.joblib, frostguard_ml.pkl   # trained model artifacts
-    ├── config/frostguard_config.json             # optional fleet override
-    ├── data/healthcare_iot_target_dataset.csv
-    ├── fleet_logs.csv
-    └── logs/*.log
+├── main_dashboard.py          # Streamlit entry point — run this
+├── frost_ml.py                # Core ML engine (simulator, training, inference)
+├── config.py                  # Thresholds, COLD_STORAGES (single source of truth), paths
+├── frostguard_ml.joblib       # Pre-trained forecaster + detector (loaded at boot)
+├── routes_cache.json          # Precomputed OSRM road routes
+├── frostguard_knn.joblib      # Pre-trained KNN breach-risk classifier (used by Bridge.py)
+├── knn_adapter.py             # KNN adapter + synthetic training data
+├── train_model.py             # Retrain frostguard_ml.joblib
+├── train_knn.py               # Retrain frostguard_knn.joblib
+├── precompute_routes.py       # Regenerate routes_cache.json (needs internet)
+├── Bridge.py / api.py         # Optional standalone REST backends
+├── trip_replay.py             # Replay dataset telemetry to a backend
+├── index.html                 # Static landing page for search engines (host separately)
+├── Dockerfile                 # python:3.12-slim, honours $PORT
+├── render.yaml                # Render deployment config
+└── requirements.txt
 ```
+
+Generated at runtime / not committed: `fleet_logs.csv`, `logs/`, and the optional `data/healthcare_iot_target_dataset.csv` and `config/frostguard_config.json`.
+
+### Retraining artifacts
+
+```bash
+python train_model.py        # rewrites frostguard_ml.joblib
+python train_knn.py          # rewrites frostguard_knn.joblib
+python precompute_routes.py  # rewrites routes_cache.json (needs internet)
+```
+
+`scikit-learn` is pinned (`==1.8.0`) because each artifact records the version it was trained with and is rejected if it doesn't match. If you change the pin, rerun the training scripts and commit the new artifacts.
+
+## Deployment
+
+The `Dockerfile` binds to `$PORT` (set by Render), falling back to 8501 locally. `render.yaml` configures the Render service and its `/_stcore/health` health check.
 
 ---
 
@@ -205,7 +216,7 @@ While FrostGuard AI demonstrates a robust cold-chain monitoring system, there ar
 **Current Limitations:**
 - Relies on simulated telemetry instead of real IoT hardware integration
 - Network latency and packet loss handling can be improved for rural deployments
-- ML models are trained on limited datasets and may require further real-world validation
+- ML models are trained on a synthetic thermal simulator, not real sensor data, and need real-world validation
 - Static cold storage nodes — dynamic availability is not yet considered
 
 **Future Improvements:**
@@ -224,7 +235,8 @@ All optional. The app runs fully offline without any of these.
 | Variable | Purpose |
 |---|---|
 | `SUPABASE_URL` | Supabase project URL for cloud telemetry sync |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_KEY`) | Supabase key — used by `Bridge.py` only |
+| `DISCORD_WEBHOOK` | Discord webhook URL for CRITICAL alerts — used by `Bridge.py` only |
 | `DATASET_PATH` | Override path to the healthcare IoT CSV |
 | `FLEET_CSV` | Override path for fleet log output |
 
@@ -234,7 +246,7 @@ All optional. The app runs fully offline without any of these.
 
 ```bash
 # Compile check — all modules
-python -m py_compile main_dashboard.py Bridge.py frost_ml.py knn_adapter.py config.py
+python -m py_compile main_dashboard.py Bridge.py api.py frost_ml.py knn_adapter.py config.py trip_replay.py train_model.py train_knn.py
 
 # Bridge smoke test — expected output: 13 TRK-RD-001
 python -c "import Bridge; fleet=Bridge._simulate_fleet(); print(len(fleet), fleet[0]['truck_id'])"
