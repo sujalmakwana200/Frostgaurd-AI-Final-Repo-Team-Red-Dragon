@@ -687,7 +687,7 @@ def launch_services():
             popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
         st.session_state.bridge_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "5000"],
+            [sys.executable, "-m", "uvicorn", "api:app", "--host", "127.0.0.1", "--port", "5000"],
             **popen_kwargs,
         )
         st.session_state.last_bridge_launch = time.time()
