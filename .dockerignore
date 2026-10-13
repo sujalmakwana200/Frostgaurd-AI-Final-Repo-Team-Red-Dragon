@@ -1,0 +1,33 @@
+# Version control / CI
+.git
+.github
+.gitignore
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime artifacts (regenerated at runtime)
+logs/
+fleet_logs.csv
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+
+# Vercel (not used for container hosting)
+.vercel
+vercel.json
