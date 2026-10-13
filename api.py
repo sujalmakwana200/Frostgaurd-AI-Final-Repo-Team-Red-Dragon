@@ -92,7 +92,7 @@ def ingest_telemetry(payload: TelemetryPayload):
 def get_latest():
     return _latest_telemetry
 
-@app.get("/fleet")
+@app.post("/command", dependencies=[Depends(require_api_key)])
 def get_fleet():
     # Only return real data, no fake static trucks!
     return {"fleet": list(_fleet_state.values())}
