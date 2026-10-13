@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets
+.env
+
+# Runtime artefacts — regenerated on boot, never commit
+fleet_logs.csv
+logs/
+*.log
+
+# Trained model binaries — rebuild with `python train_knn.py` / startup training
+# (pickles are executable; don't ship them in a public repo)
+*.joblib
+*.pkl
+
+# Large data
+data/*.csv
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
