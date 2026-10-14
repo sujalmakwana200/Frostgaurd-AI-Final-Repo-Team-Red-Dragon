@@ -9,3 +9,6 @@ EXPOSE 8501
 # deploy hangs indefinitely. Shell form (not exec-array form) is required
 # here so $PORT actually gets substituted at container start.
 CMD streamlit run main_dashboard.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true
+COPY . .
+RUN chmod +x start.sh
+CMD ["./start.sh"]
