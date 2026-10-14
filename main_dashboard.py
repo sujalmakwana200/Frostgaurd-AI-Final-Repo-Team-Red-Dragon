@@ -28,18 +28,10 @@ from config import COLD_STORAGES
 # ──────────────────────────────────────────────────────────────
 #  PAGE CONFIG — must be first Streamlit call
 # ──────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="FrostGuard AI — Cold Fleet",
-    page_icon="❄️",  # replaces Streamlit's default favicon
-    layout="wide",
-    initial_sidebar_state="collapsed",
-    menu_items={
-        # None hides the default links that point at Streamlit's own docs/forum.
-        "Get Help": None,
-        "Report a bug": None,
-        "About": "FrostGuard AI — real-time cold-chain monitoring and predictive rerouting. Team Red Dragon, IIIT Vadodara.",
-    },
-)
+st.set_page_config(layout="wide", page_title="FrostGuard AI")
+placeholder = st.empty()
+placeholder.info("Loading models, first start takes up to a minute…")
+
 
 # ──────────────────────────────────────────────────────────────
 #  CONSTANTS
