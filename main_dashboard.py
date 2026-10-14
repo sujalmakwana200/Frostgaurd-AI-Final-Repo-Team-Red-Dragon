@@ -78,7 +78,7 @@ def get_ml_engine() -> FrostGuardML:
         try:
             return FrostGuardML.load_artifact(artifact_path)
         except Exception:
-            pass
+           logging.warning("artifact unusable, retraining: %s", e)
     return FrostGuardML(n_traces=40, steps_per_trace=120)
 
 
