@@ -661,44 +661,43 @@ def api_online():
         return False
 
 
-def launch_services():
-    if api_online():
-        return
-    proc = st.session_state.get("bridge_process")
-    if proc is not None:
-        try:
-            proc.terminate()
-            if proc.stdout: proc.stdout.close()
-            if proc.stderr: proc.stderr.close()
-        except Exception:
-            pass
+@st.cache_resource(show_spinner=False)
+def start_api_service():
+    """Start api.py (the FastAPI telemetry intake) once per Streamlit server process.
 
+    cache_resource makes this a process-wide singleton, so reruns and new browser
+    sessions never spawn extra uvicorn processes. It never raises and never blocks:
+    the dashboard runs fine in demo mode while the API boots (or if it can't start).
+
+    On by default for local runs. Skipped by default on Render and Streamlit Cloud:
+    the API only listens on 127.0.0.1, so nothing outside the container could reach
+    it there, and it would just cost a second process on a small host. Override with
+    FROSTGUARD_START_API=1 (force on) or =0 (force off). The API fails closed on
+    POSTs unless FROSTGUARD_API_KEY is set before launching Streamlit.
+    """
+    hosted = bool(os.environ.get("RENDER")) or str(Path(__file__).resolve()).startswith("/mount/src")
+    if os.environ.get("FROSTGUARD_START_API", "0" if hosted else "1") != "1" or api_online():
+        return None
     base = os.path.dirname(os.path.abspath(__file__))
-    logs = os.path.join(base, "logs")
-    os.makedirs(logs, exist_ok=True)
-
-    api_path = os.path.join(base, "api.py")
-    if os.path.exists(api_path):
-        stdout = open(os.path.join(logs, "api_stdout.log"), "a", encoding="utf-8")
-        stderr = open(os.path.join(logs, "api_stderr.log"), "a", encoding="utf-8")
-        popen_kwargs = {"cwd": base, "stdout": stdout, "stderr": stderr}
-        if hasattr(subprocess, "CREATE_NO_WINDOW"):
-            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-
-        st.session_state.bridge_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "api:app", "--host", "127.0.0.1", "--port", "5000"],
-            **popen_kwargs,
-        )
-        st.session_state.last_bridge_launch = time.time()
+    if not os.path.exists(os.path.join(base, "api.py")):
+        return None
+    try:
+        logs = os.path.join(base, "logs")
+        os.makedirs(logs, exist_ok=True)
+        flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if hasattr(subprocess, "CREATE_NO_WINDOW") else {}
+        with open(os.path.join(logs, "api_stdout.log"), "a", encoding="utf-8") as out, \
+             open(os.path.join(logs, "api_stderr.log"), "a", encoding="utf-8") as err:
+            return subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "api:app", "--host", "127.0.0.1", "--port", "5000"],
+                cwd=base, stdout=out, stderr=err, **flags,
+            )
+    except Exception as exc:
+        logging.warning("could not start api.py: %s", exc)
+        return None
 
 
 def ensure_services():
-    # The dashboard now runs its ML models in-process (see get_ml_engine() /
-    # get_knn_router()), so it no longer depends on spawning api.py/Bridge.py
-    # as a background subprocess. That pattern was unreliable on hosted
-    # platforms like Streamlit Community Cloud, and nothing was posting
-    # telemetry to it anyway. Left in place, unused, for anyone who wants to
-    # run api.py/Bridge.py standalone for the distributed-services version.
+    start_api_service()
     st.session_state.services_launched = True
 
 
@@ -1288,7 +1287,7 @@ def render_alerts():
     elif s["is_warn"]:
         st.warning(f"⚠️ WARNING — Temperature rising: **{s['temp']}°C** · Compressor activated")
     elif not s["api_ok"]:
-        st.info("⏳ Connecting to bridge — dashboard rendering with last known state.")
+        st.info("ℹ️ Demo mode — no live telemetry source connected, showing the simulated fleet.")
 
 
 @st.fragment(run_every=4)
