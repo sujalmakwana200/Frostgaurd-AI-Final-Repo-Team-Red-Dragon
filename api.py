@@ -37,9 +37,14 @@ _fleet_state: dict[str, dict] = {}
 _latest_telemetry: dict[str, Any] | None = None
 _csv_lock = threading.Lock()
 
-_ml_engine = FrostGuardML(
+# Load the committed artifact (~1s) instead of training at import (~14s); load_artifact
+# retrains with these light settings only if the artifact is missing or version-mismatched.
+_ml_engine = FrostGuardML.load_artifact(
+    os.path.join(BASE_DIR, "frostguard_ml.joblib"),
     csv_path=CSV_FILE,
     dataset_path=DATASET_PATH if os.path.exists(DATASET_PATH) else None,
+    n_traces=40,
+    steps_per_trace=120,
 )
 
 _TRUCK_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")

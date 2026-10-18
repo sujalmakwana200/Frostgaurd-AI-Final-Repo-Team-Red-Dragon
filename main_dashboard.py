@@ -7,6 +7,7 @@ import math
 import os
 import json
 import html
+import logging
 import csv
 import subprocess
 import sys
@@ -75,11 +76,17 @@ def get_ml_engine() -> FrostGuardML:
     keeps the app working even if the artifact isn't committed, just slower."""
     artifact_path = str(BASE_DIR / "frostguard_ml.joblib")
     if os.path.exists(artifact_path):
+        # load_artifact retrains internally on a sklearn-version mismatch, so pass the
+        # light settings through instead of letting it fall back to the heavy defaults.
         try:
-            return FrostGuardML.load_artifact(artifact_path)
-        except Exception:
-           logging.warning("artifact unusable, retraining: %s", e)
+            return FrostGuardML.load_artifact(artifact_path, n_traces=40, steps_per_trace=120)
+        except Exception as e:
+            logging.warning("artifact unusable, retraining: %s", e)
     return FrostGuardML(n_traces=40, steps_per_trace=120)
+
+
+get_ml_engine()  # warm the cache, then drop the loading banner
+placeholder.empty()
 
 
 @st.cache_resource(show_spinner=False)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -71,7 +72,9 @@ def replay_trip() -> None:
         payload["lng"] = round(START_LON + (DEST_LON - START_LON) * progress, 5)
 
         try:
-            requests.post(BRIDGE_URL, json=payload, timeout=5)
+            headers = {"X-FrostGuard-Key": os.environ.get("FROSTGUARD_API_KEY", "")}
+            resp = requests.post(BRIDGE_URL, json=payload, headers=headers, timeout=5)
+            resp.raise_for_status()
             print(f"[Sent] Temp: {payload['temperature']}C | Lat: {payload['lat']} Lng: {payload['lng']}")
         except Exception as exc:
             print(f"Failed: {exc}")
