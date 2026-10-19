@@ -100,7 +100,7 @@ def get_knn_router() -> NearestNeighbors:
 
 def knn_nearest_cold_storage(lat: float, lon: float) -> tuple[dict, float]:
     model = get_knn_router()
-    dist, idx = model.kneighbors([[lat, lon]], n_neighbors=1)
+    dist, idx = model.kneighbors(np.array([[lat, lon]]), n_neighbors=1)
     target = COLD_STORAGES[int(idx[0][0])]
     distance_km = float(dist[0][0]) * 111.0  # ~km per degree, good enough at this scale
     return target, round(haversine(lat, lon, target["lat"], target["lon"]), 2)
@@ -543,7 +543,7 @@ def risk_from_temp(temp):
     return "SAFE"
 
 
-def safe_float(value, default=0.0):
+def safe_float(value, default: Any = 0.0):
     try:
         if value is None:
             return default
@@ -684,12 +684,12 @@ def start_api_service():
     try:
         logs = os.path.join(base, "logs")
         os.makedirs(logs, exist_ok=True)
-        flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if hasattr(subprocess, "CREATE_NO_WINDOW") else {}
         with open(os.path.join(logs, "api_stdout.log"), "a", encoding="utf-8") as out, \
              open(os.path.join(logs, "api_stderr.log"), "a", encoding="utf-8") as err:
             return subprocess.Popen(
                 [sys.executable, "-m", "uvicorn", "api:app", "--host", "127.0.0.1", "--port", "5000"],
-                cwd=base, stdout=out, stderr=err, **flags,
+                cwd=base, stdout=out, stderr=err,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),  # 0 on Linux/macOS = no-op
             )
     except Exception as exc:
         logging.warning("could not start api.py: %s", exc)
@@ -873,7 +873,7 @@ def target_from_reroute(telemetry, lat, lon):
             "name": target.get("name", "KNN Cold Storage"),
             "city": target.get("city", "Emergency"),
             "lat": float(target["lat"]),
-            "lon": float(target.get("lon", target.get("lng"))),
+            "lon": float(target["lon"] if "lon" in target else target["lng"]),
         }
     return nearest_cold_storage(lat, lon)
 
@@ -1382,7 +1382,7 @@ def render_map():
             bearing=-15
         ),
         map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-        tooltip={
+        tooltip={  # pyright: ignore[reportArgumentType]  (pydeck takes a dict; stub says bool)
             "html": "<b>{truck_id}</b> ({name})<br/>Cargo: {cargo}<br/>Temp: <b>{temperature}°C</b><br/>Status: <b>{status}</b>",
             "style": {
                 "backgroundColor": "#0A0A0A",
