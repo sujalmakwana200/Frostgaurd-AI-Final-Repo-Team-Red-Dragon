@@ -1305,6 +1305,57 @@ def render_metrics():
     m8.metric("⏱ ETA", "REROUTING 🧊" if st.session_state.rerouted else f"{s['eta_min']} min")
 
 
+def _rdp(points, eps):
+    """Douglas-Peucker line simplification (iterative, planar degrees)."""
+    n = len(points)
+    if n < 3:
+        return points
+    keep = [False] * n
+    keep[0] = keep[-1] = True
+    stack = [(0, n - 1)]
+    eps2 = eps * eps
+    while stack:
+        a, b = stack.pop()
+        x1, y1 = points[a]
+        x2, y2 = points[b]
+        dx, dy = x2 - x1, y2 - y1
+        d2 = dx * dx + dy * dy
+        best, idx = -1.0, -1
+        for i in range(a + 1, b):
+            x, y = points[i]
+            if d2 == 0:
+                dist2 = (x - x1) ** 2 + (y - y1) ** 2
+            else:
+                t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / d2))
+                dist2 = (x - (x1 + t * dx)) ** 2 + (y - (y1 + t * dy)) ** 2
+            if dist2 > best:
+                best, idx = dist2, i
+        if best > eps2:
+            keep[idx] = True
+            stack.append((a, idx))
+            stack.append((idx, b))
+    return [p for p, k in zip(points, keep) if k]
+
+
+def display_path(route, key, tolerance_deg=0.00005):
+    """[lat, lon] route -> simplified [lon, lat] path for drawing only (default ~5 m tolerance).
+
+    st.pydeck_chart re-sends every layer to the browser on each fragment refresh, so the
+    full OSRM geometry (~44k points, ~1 MB) was being re-sent every 3 s per open tab.
+    The simplified path is computed once per session and reused. The simulation keeps
+    using the full-resolution routes; only what is drawn is reduced.
+    """
+    cache = st.session_state.setdefault("_display_paths", {})
+    sig = (len(route), tuple(route[0]), tuple(route[-1])) if route else (0,)
+    hit = cache.get(key)
+    if hit and hit[0] == sig:
+        return hit[1]
+    simplified = _rdp([(lo, la) for la, lo in route], tolerance_deg)
+    path = [[round(lo, 5), round(la, 5)] for lo, la in simplified]
+    cache[key] = (sig, path)
+    return path
+
+
 @st.fragment(run_every=3)
 def render_map():
     s = get_dashboard_state()
@@ -1313,14 +1364,14 @@ def render_map():
     for idx, item in enumerate(FLEET_ROUTES):
         route = st.session_state.fleet_routes.get(item["truck_id"], [])
         if route:
-            path = [[lo, la] for la, lo in route]
+            path = display_path(route, item["truck_id"], 0.0005)  # faint background routes: ~55 m is invisible
             layers.append(pdk.Layer(
                 "PathLayer", data=[{"path": path}], get_path="path",
                 get_color=[0, 130, 255, 42 + idx * 8],
                 width_scale=9, width_min_pixels=2,
             ))
 
-    main_path = [[lo, la] for la, lo in st.session_state.main_route]
+    main_path = display_path(st.session_state.main_route, "main")
     layers.append(pdk.Layer(
         "PathLayer", data=[{"path": main_path}], get_path="path",
         get_color=[25, 65, 190, 55] if st.session_state.rerouted else [0, 130, 255, 110],
@@ -1328,7 +1379,7 @@ def render_map():
     ))
 
     if st.session_state.rerouted and st.session_state.active_route:
-        rr_path = [[lo, la] for la, lo in st.session_state.active_route]
+        rr_path = display_path(st.session_state.active_route, "reroute")
         layers.append(pdk.Layer(
             "PathLayer", data=[{"path": rr_path}], get_path="path",
             get_color=[255, 95, 0, 230], width_scale=15, width_min_pixels=4,
@@ -1337,7 +1388,7 @@ def render_map():
     layers.append(pdk.Layer(
         "ScatterplotLayer",
         data=[{"lat": c["lat"], "lon": c["lon"], "name": c["name"], "city": c["city"]} for c in COLD_STORAGES],
-        get_position="[lon, lat]", get_color=[0, 195, 255, 175],
+        get_position="[lon, lat]", get_fill_color=[0, 195, 255, 175],
         get_radius=500, radiusMinPixels=8, pickable=True,
     ))
 
@@ -1345,7 +1396,7 @@ def render_map():
         t = st.session_state.reroute_target
         layers.append(pdk.Layer(
             "ScatterplotLayer", data=[{"lat": t["lat"], "lon": t["lon"]}],
-            get_position="[lon, lat]", get_color=[255, 50, 50, 50],
+            get_position="[lon, lat]", get_fill_color=[255, 50, 50, 50],
             get_radius=1600, radiusMinPixels=24,
         ))
 
@@ -1367,7 +1418,7 @@ def render_map():
 
     layers.append(pdk.Layer(
         "ScatterplotLayer", data=truck_points,
-        get_position="[lon, lat]", get_color="color",
+        get_position="[lon, lat]", get_fill_color="color",
         get_radius="radius", radiusMinPixels=9, radiusMaxPixels=22,
         pickable=True,
     ))
